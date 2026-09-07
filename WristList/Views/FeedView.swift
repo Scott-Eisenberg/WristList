@@ -9,7 +9,6 @@ struct FeedView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var reviews = SampleFeedData.reviews
     @State private var headerIsVisible = false
-    @State private var refreshCount = 0
 
     var body: some View {
         NavigationStack {
@@ -37,7 +36,9 @@ struct FeedView: View {
                     await refreshFeed()
                 }
             }
-            .navigationBarHidden(true)
+#if os(iOS)
+            .toolbar(.hidden, for: .navigationBar)
+#endif
             .onAppear {
                 withAnimation(.easeOut(duration: 0.45)) {
                     headerIsVisible = true
@@ -55,7 +56,6 @@ struct FeedView: View {
         withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) {
             let firstReview = reviews.removeFirst()
             reviews.append(firstReview)
-            refreshCount += 1
         }
     }
 }

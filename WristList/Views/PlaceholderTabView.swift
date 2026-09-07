@@ -42,7 +42,9 @@ struct PlaceholderTabView: View {
                 .padding(28)
             }
             .navigationTitle(title)
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
         }
     }
 }
