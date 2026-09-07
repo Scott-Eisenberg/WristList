@@ -6,75 +6,51 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
-
     var body: some View {
-        NavigationViewWrapper {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
+        TabView {
+            FeedView()
+                .tabItem {
+                    Label("Feed", systemImage: "sparkles.rectangle.stack")
                 }
-                .onDelete(perform: deleteItems)
-            }
-#if os(macOS)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-#endif
-            .toolbar {
-#if os(iOS)
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-#endif
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
-        }
-    }
 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
+            PlaceholderTabView(
+                title: "Discover",
+                subtitle: "Search festivals, compare lineups, and find the next weekend worth planning around.",
+                systemImage: "magnifyingglass",
+                palette: .violet
+            )
+            .tabItem {
+                Label("Discover", systemImage: "magnifyingglass")
+            }
 
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+            PlaceholderTabView(
+                title: "My List",
+                subtitle: "Keep track of festivals you have saved, ranked, attended, or want to hit next.",
+                systemImage: "list.bullet.clipboard",
+                palette: .sunset
+            )
+            .tabItem {
+                Label("My List", systemImage: "list.bullet.clipboard")
+            }
+
+            PlaceholderTabView(
+                title: "Profile",
+                subtitle: "Your festival history, stats, favorite cities, and all-time rankings will live here.",
+                systemImage: "person.crop.circle",
+                palette: .electric
+            )
+            .tabItem {
+                Label("Profile", systemImage: "person.crop.circle")
             }
         }
+        .tint(WristlistTheme.coral)
     }
 }
 
-fileprivate struct NavigationViewWrapper<Content: View>: View {
-    let content: () -> Content
-
-    var body: some View {
-#if os(macOS)
-        NavigationSplitView {
-            content()
-        } detail: {
-            Text("Select an item")
-        }
-#else
-        content()
-#endif
-    }
-}
-
-#Preview {
+#Preview("App Shell") {
     ContentView()
         .modelContainer(for: Item.self, inMemory: true)
+        .preferredColorScheme(.dark)
 }
