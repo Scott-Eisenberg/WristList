@@ -3,38 +3,48 @@
 //  WristList
 //
 
+import SwiftData
 import SwiftUI
 
 struct ReviewCardView: View {
-    let review: FestivalReview
+    let review: WLReview
+    let festival: WLFestival
+    let profile: WLProfile?
+    let comments: [WLComment]
 
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
-    @State private var isLiked = false
-    @State private var isSaved: Bool
-    @State private var likeCount: Int
+    @State private var isShowingComments = false
+    @State private var actionError: String?
 
-    init(review: FestivalReview) {
-        self.review = review
-        _isSaved = State(initialValue: review.isSaved)
-        _likeCount = State(initialValue: review.likes)
+    private var reviewComments: [WLComment] {
+        comments
+            .filter { $0.reviewID == review.id }
+            .sorted { $0.createdAt < $1.createdAt }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 12) {
-                Text(review.user.initials)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
-                    .background(WristlistTheme.gradient(for: review.user.palette), in: Circle())
-                    .accessibilityHidden(true)
+                NavigationLink {
+                    UserProfileDetailView(review: review)
+                } label: {
+                    AvatarCircle(initials: review.userInitials, palette: review.userPalette, size: 44, fontSize: 14)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open \(review.userName)'s profile")
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(review.user.name)
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
+                    NavigationLink {
+                        UserProfileDetailView(review: review)
+                    } label: {
+                        Text(review.userName)
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
+                    }
+                    .buttonStyle(.plain)
 
-                    Text("\(review.user.handle) reviewed \(review.festival.name)")
+                    Text("\(review.userHandle) reviewed \(festival.name)")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
                         .lineLimit(2)
@@ -42,20 +52,38 @@ struct ReviewCardView: View {
 
                 Spacer(minLength: 8)
 
-                ScoreBadge(score: review.overallScore, palette: review.festival.palette)
+                ScoreBadge(score: review.overallScore, palette: festival.palette)
             }
 
-            FestivalReviewSummary(review: review)
+            NavigationLink {
+                FestivalDetailView(festival: festival)
+            } label: {
+                FestivalReviewSummary(review: review, festival: festival)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open \(festival.name) details")
 
-            CategoryScoresGrid(scores: review.categoryScores, palette: review.festival.palette)
+            CategoryScoresGrid(scores: review.categoryScores, palette: festival.palette)
+
+            if !review.favoritePerformances.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Favorite performances")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
+                    Text(review.favoritePerformances.joined(separator: " / "))
+                        .font(.caption)
+                        .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
+                        .lineLimit(2)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Favorite performances: \(review.favoritePerformances.joined(separator: ", "))")
+            }
 
             ReviewActionBar(
-                likeCount: likeCount,
-                commentCount: review.comments,
-                isLiked: isLiked,
-                isSaved: isSaved,
+                review: review,
+                festival: festival,
                 onLike: toggleLike,
-                onComment: { },
+                onComment: { isShowingComments = true },
                 onSave: toggleSave
             )
         }
@@ -66,66 +94,84 @@ struct ReviewCardView: View {
                 .strokeBorder(WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
         }
         .accessibilityElement(children: .contain)
+        .sheet(isPresented: $isShowingComments) {
+            CommentsSheet(review: review, comments: reviewComments, profile: profile)
+        }
+        .alert("Could not update review", isPresented: Binding(get: { actionError != nil }, set: { if !$0 { actionError = nil } })) {
+            Button("OK", role: .cancel) { actionError = nil }
+        } message: {
+            Text(actionError ?? "Try again.")
+        }
     }
 
     private func toggleLike() {
         withAnimation(.spring(response: 0.25, dampingFraction: 0.70)) {
-            isLiked.toggle()
-            likeCount += isLiked ? 1 : -1
+            do {
+                try WristlistDataController.toggleLike(review, context: modelContext)
+            } catch {
+                actionError = error.localizedDescription
+            }
         }
     }
 
     private func toggleSave() {
         withAnimation(.spring(response: 0.25, dampingFraction: 0.76)) {
-            isSaved.toggle()
+            do {
+                try WristlistDataController.toggleSave(festival, context: modelContext)
+            } catch {
+                actionError = error.localizedDescription
+            }
         }
     }
 }
 
 private struct FestivalReviewSummary: View {
-    let review: FestivalReview
+    let review: WLReview
+    let festival: WLFestival
 
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            FestivalArtworkView(festival: review.festival)
-                .frame(width: 88, height: 88)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                FestivalArtworkView(festival: festival)
+                    .frame(width: 88, height: 88)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 8) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(review.festival.name)
-                        .font(.title3.weight(.black))
-                        .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
+                VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(festival.name)
+                            .font(.title3.weight(.black))
+                            .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
 
-                    Label(review.festival.city, systemImage: "mappin.and.ellipse")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
-                        .lineLimit(1)
+                        Label(festival.cityState, systemImage: "mappin.and.ellipse")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
+                            .lineLimit(1)
 
-                    Label(review.attendedOn, systemImage: "calendar")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
-                        .lineLimit(1)
-                }
+                        Label(DateFormatting.monthYear(review.attendedDate), systemImage: "calendar")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
+                            .lineLimit(1)
+                    }
 
-                HStack(spacing: 6) {
-                    ForEach(review.festival.genreTags.prefix(3), id: \.self) { tag in
-                        WristbandTag(text: tag, palette: review.festival.palette)
+                    HStack(spacing: 6) {
+                        ForEach(festival.genres.prefix(3), id: \.self) { tag in
+                            WristbandTag(text: tag, palette: festival.palette)
+                        }
                     }
                 }
             }
-        }
 
-        Text(review.reviewText)
-            .font(.body)
-            .lineSpacing(2)
-            .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
-            .fixedSize(horizontal: false, vertical: true)
-            .accessibilityLabel("Review: \(review.reviewText)")
+            Text(review.reviewText.isEmpty ? "Logged this festival without a written review." : review.reviewText)
+                .font(.body)
+                .lineSpacing(2)
+                .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityLabel("Review: \(review.reviewText)")
+        }
     }
 }
 
@@ -147,83 +193,49 @@ private struct CategoryScoresGrid: View {
     }
 }
 
-private struct CategoryScoreView: View {
-    let score: ReviewCategoryScore
-    let palette: FestivalPalette
-
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack {
-                Text(score.name)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
-                    .lineLimit(1)
-
-                Spacer(minLength: 4)
-
-                Text(score.score, format: .number.precision(.fractionLength(1)))
-                    .font(.caption.weight(.black))
-                    .monospacedDigit()
-                    .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
-            }
-
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(WristlistTheme.cardStroke(for: colorScheme))
-
-                    Capsule()
-                        .fill(WristlistTheme.gradient(for: palette))
-                        .frame(width: max(8, proxy.size.width * min(score.score / 10, 1)))
-                }
-            }
-            .frame(height: 5)
-        }
-        .padding(10)
-        .background(Color.white.opacity(colorScheme == .dark ? 0.05 : 0.50), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(score.name) score \(score.score, specifier: "%.1f") out of 10")
-    }
-}
-
 private struct ReviewActionBar: View {
-    let likeCount: Int
-    let commentCount: Int
-    let isLiked: Bool
-    let isSaved: Bool
+    let review: WLReview
+    let festival: WLFestival
     let onLike: () -> Void
     let onComment: () -> Void
     let onSave: () -> Void
 
-    @Environment(\.colorScheme) private var colorScheme
-
     var body: some View {
         HStack(spacing: 8) {
             ReviewActionButton(
-                title: "\(likeCount)",
-                systemImage: isLiked ? "heart.fill" : "heart",
-                isActive: isLiked,
-                accessibilityLabel: isLiked ? "Unlike review" : "Like review",
+                title: "\(review.likeCount)",
+                systemImage: review.isLiked ? "heart.fill" : "heart",
+                isActive: review.isLiked,
+                accessibilityLabel: review.isLiked ? "Unlike review" : "Like review",
                 action: onLike
             )
 
             ReviewActionButton(
-                title: "\(commentCount)",
+                title: "\(review.commentCount)",
                 systemImage: "bubble.left",
                 isActive: false,
                 accessibilityLabel: "Comment on review",
                 action: onComment
             )
 
-            Spacer()
+            ShareLink(item: "Check out \(review.userName)'s Wristlist review of \(festival.name): \(review.overallScore.formatted(.number.precision(.fractionLength(1))))/10") {
+                Label("Share", systemImage: "square.and.arrow.up")
+                    .font(.subheadline.weight(.bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+                    .padding(.horizontal, 12)
+                    .frame(height: 36)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Share review")
+
+            Spacer(minLength: 0)
 
             ReviewActionButton(
-                title: isSaved ? "Saved" : "Save",
-                systemImage: isSaved ? "bookmark.fill" : "bookmark",
-                isActive: isSaved,
-                accessibilityLabel: isSaved ? "Remove saved review" : "Save review",
+                title: festival.isSaved ? "Saved" : "Save",
+                systemImage: festival.isSaved ? "bookmark.fill" : "bookmark",
+                isActive: festival.isSaved,
+                accessibilityLabel: festival.isSaved ? "Remove \(festival.name) from saved festivals" : "Save \(festival.name)",
                 action: onSave
             )
         }
@@ -256,13 +268,103 @@ private struct ReviewActionButton: View {
     }
 }
 
+private struct CommentsSheet: View {
+    let review: WLReview
+    let comments: [WLComment]
+    let profile: WLProfile?
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @State private var commentText = ""
+    @State private var actionError: String?
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if comments.isEmpty {
+                    ContentUnavailableView {
+                        Label("No comments yet", systemImage: "bubble.left")
+                    } description: {
+                        Text("Start the conversation about this review.")
+                    }
+                } else {
+                    ForEach(comments) { comment in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                AvatarCircle(initials: comment.userInitials, palette: .violet, size: 32, fontSize: 11)
+                                Text(comment.userName)
+                                    .font(.subheadline.weight(.bold))
+                                Spacer()
+                                Text(DateFormatting.shortDate(comment.createdAt))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text(comment.text)
+                                .font(.body)
+                        }
+                        .padding(.vertical, 4)
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+
+                Section("Add comment") {
+                    TextField("Add a comment", text: $commentText, axis: .vertical)
+                        .lineLimit(2...4)
+                        .accessibilityLabel("Comment text")
+
+                    Button("Post Comment") {
+                        addComment()
+                    }
+                    .disabled(commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || profile == nil)
+                    .accessibilityLabel("Post comment")
+                }
+            }
+            .navigationTitle("Comments")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .alert("Could not post comment", isPresented: Binding(get: { actionError != nil }, set: { if !$0 { actionError = nil } })) {
+                Button("OK", role: .cancel) { actionError = nil }
+            } message: {
+                Text(actionError ?? "Try again.")
+            }
+        }
+    }
+
+    private func addComment() {
+        guard let profile else { return }
+
+        do {
+            try WristlistDataController.addComment(text: commentText, to: review, profile: profile, context: modelContext)
+            commentText = ""
+        } catch {
+            actionError = error.localizedDescription
+        }
+    }
+}
+
 #Preview("Review Card") {
+    let container = PreviewContainerFactory.makeContainer()
+    let context = container.mainContext
+    let festivals = (try? context.fetch(FetchDescriptor<WLFestival>())) ?? []
+    let reviews = (try? context.fetch(FetchDescriptor<WLReview>())) ?? []
+    let comments = (try? context.fetch(FetchDescriptor<WLComment>())) ?? []
+    let profiles = (try? context.fetch(FetchDescriptor<WLProfile>())) ?? []
+    let review = reviews.first
+    let festival = review.flatMap { selectedReview in festivals.first { $0.id == selectedReview.festivalID } }
+
     ZStack {
         WristlistTheme.appBackground(for: .dark)
             .ignoresSafeArea()
 
-        ReviewCardView(review: SampleFeedData.reviews[0])
-            .padding()
+        if let review, let festival {
+            ReviewCardView(review: review, festival: festival, profile: profiles.first, comments: comments)
+                .padding()
+        }
     }
+    .modelContainer(container)
     .preferredColorScheme(.dark)
 }

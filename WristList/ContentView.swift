@@ -5,10 +5,18 @@
 //  Created by Scott Eisenberg on 9/7/26.
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct ContentView: View {
+    @Environment(\.modelContext) private var modelContext
+    @AppStorage("appearancePreference") private var appearancePreferenceRaw = AppearancePreference.system.rawValue
+    @State private var seedError: String?
+
+    private var appearancePreference: AppearancePreference {
+        AppearancePreference(rawValue: appearancePreferenceRaw) ?? .system
+    }
+
     var body: some View {
         TabView {
             FeedView()
@@ -16,42 +24,40 @@ struct ContentView: View {
                     Label("Feed", systemImage: "sparkles.rectangle.stack")
                 }
 
-            PlaceholderTabView(
-                title: "Discover",
-                subtitle: "Search festivals, compare lineups, and find the next weekend worth planning around.",
-                systemImage: "magnifyingglass",
-                palette: .violet
-            )
-            .tabItem {
-                Label("Discover", systemImage: "magnifyingglass")
-            }
+            DiscoverView()
+                .tabItem {
+                    Label("Discover", systemImage: "magnifyingglass")
+                }
 
-            PlaceholderTabView(
-                title: "My List",
-                subtitle: "Keep track of festivals you have saved, ranked, attended, or want to hit next.",
-                systemImage: "list.bullet.clipboard",
-                palette: .sunset
-            )
-            .tabItem {
-                Label("My List", systemImage: "list.bullet.clipboard")
-            }
+            MyListView()
+                .tabItem {
+                    Label("My List", systemImage: "list.bullet.clipboard")
+                }
 
-            PlaceholderTabView(
-                title: "Profile",
-                subtitle: "Your festival history, stats, favorite cities, and all-time rankings will live here.",
-                systemImage: "person.crop.circle",
-                palette: .electric
-            )
-            .tabItem {
-                Label("Profile", systemImage: "person.crop.circle")
-            }
+            ProfileView()
+                .tabItem {
+                    Label("Profile", systemImage: "person.crop.circle")
+                }
         }
         .tint(WristlistTheme.coral)
+        .preferredColorScheme(appearancePreference.colorScheme)
+        .task {
+            do {
+                try WristlistDataController.seedIfNeeded(in: modelContext)
+            } catch {
+                seedError = error.localizedDescription
+            }
+        }
+        .alert("Could not prepare local data", isPresented: Binding(get: { seedError != nil }, set: { if !$0 { seedError = nil } })) {
+            Button("OK", role: .cancel) { seedError = nil }
+        } message: {
+            Text(seedError ?? "Try again.")
+        }
     }
 }
 
 #Preview("App Shell") {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+        .modelContainer(PreviewContainerFactory.makeContainer())
         .preferredColorScheme(.dark)
 }

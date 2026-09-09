@@ -5,15 +5,13 @@
 //  Created by Scott Eisenberg on 9/7/26.
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 @main
 struct WristListApp: App {
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
+        let schema = Schema(WristlistDataController.schemaModels)
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
         do {

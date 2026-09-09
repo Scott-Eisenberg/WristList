@@ -14,7 +14,7 @@ struct HeaderIconButton: View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: 17, weight: .semibold))
-                .frame(width: 42, height: 42)
+                .frame(width: 44, height: 44)
                 .background(.ultraThinMaterial, in: Circle())
                 .overlay {
                     Circle()
@@ -29,22 +29,42 @@ struct HeaderIconButton: View {
 struct AvatarButton: View {
     let initials: String
     let palette: FestivalPalette
+    let accessibilityLabel: String
     let action: () -> Void
+
+    init(initials: String, palette: FestivalPalette, accessibilityLabel: String = "Open profile", action: @escaping () -> Void) {
+        self.initials = initials
+        self.palette = palette
+        self.accessibilityLabel = accessibilityLabel
+        self.action = action
+    }
 
     var body: some View {
         Button(action: action) {
-            Text(initials)
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-                .frame(width: 42, height: 42)
-                .background(WristlistTheme.gradient(for: palette), in: Circle())
-                .overlay {
-                    Circle()
-                        .strokeBorder(Color.white.opacity(0.30), lineWidth: 1)
-                }
+            AvatarCircle(initials: initials, palette: palette, size: 44, fontSize: 14)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Open profile")
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+struct AvatarCircle: View {
+    let initials: String
+    let palette: FestivalPalette
+    let size: CGFloat
+    let fontSize: CGFloat
+
+    var body: some View {
+        Text(initials)
+            .font(.system(size: fontSize, weight: .bold, design: .rounded))
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(WristlistTheme.gradient(for: palette), in: Circle())
+            .overlay {
+                Circle()
+                    .strokeBorder(Color.white.opacity(0.30), lineWidth: 1)
+            }
+            .accessibilityHidden(true)
     }
 }
 
@@ -68,6 +88,7 @@ struct WristbandTag: View {
 struct ScoreBadge: View {
     let score: Double
     let palette: FestivalPalette
+    var label: String = "Overall score"
 
     var body: some View {
         VStack(spacing: 0) {
@@ -81,12 +102,12 @@ struct ScoreBadge: View {
         .foregroundStyle(.white)
         .frame(width: 64, height: 58)
         .background(WristlistTheme.gradient(for: palette), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .accessibilityLabel("Overall score \(score, specifier: "%.1f") out of 10")
+        .accessibilityLabel("\(label) \(score, specifier: "%.1f") out of 10")
     }
 }
 
 struct FestivalArtworkView: View {
-    let festival: Festival
+    let festival: WLFestival
 
     var body: some View {
         ZStack {
@@ -96,7 +117,7 @@ struct FestivalArtworkView: View {
                 HStack(spacing: 6) {
                     ForEach(0..<4, id: \.self) { index in
                         RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill(Color.white.opacity(index.isMultiple(of: 2) ? 0.75 : 0.35))
+                            .fill(Color.white.opacity(index.isMultiple(of: 2) ? 0.74 : 0.34))
                             .frame(width: 22, height: 74)
                             .rotationEffect(.degrees(Double(index - 2) * 7))
                     }
@@ -112,7 +133,7 @@ struct FestivalArtworkView: View {
                 Text(festival.name)
                     .font(.headline.weight(.bold))
                     .lineLimit(2)
-                Text(festival.city)
+                Text(festival.cityState)
                     .font(.caption.weight(.semibold))
                     .opacity(0.84)
             }
@@ -120,6 +141,190 @@ struct FestivalArtworkView: View {
             .padding(12)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Festival artwork for \(festival.name) in \(festival.city)")
+        .accessibilityLabel("Festival artwork for \(festival.name) in \(festival.cityState)")
+    }
+}
+
+struct SectionTitleView: View {
+    let title: String
+    var subtitle: String?
+    var actionTitle: String?
+    var action: (() -> Void)?
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.title3.weight(.black))
+                    .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
+
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(WristlistTheme.coral)
+                    .accessibilityLabel(actionTitle)
+            }
+        }
+    }
+}
+
+struct CategoryScoreView: View {
+    let score: ReviewCategoryScore
+    let palette: FestivalPalette
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                Text(score.name)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+
+                Spacer(minLength: 4)
+
+                Text(score.score, format: .number.precision(.fractionLength(1)))
+                    .font(.caption.weight(.black))
+                    .monospacedDigit()
+                    .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
+            }
+
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(WristlistTheme.cardStroke(for: colorScheme))
+
+                    Capsule()
+                        .fill(WristlistTheme.gradient(for: palette))
+                        .frame(width: max(8, proxy.size.width * min(score.score / 10, 1)))
+                }
+            }
+            .frame(height: 5)
+        }
+        .padding(10)
+        .background(Color.white.opacity(colorScheme == .dark ? 0.05 : 0.50), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(score.name) score \(score.score, specifier: "%.1f") out of 10")
+    }
+}
+
+struct EmptyStateView: View {
+    let title: String
+    let message: String
+    let systemImage: String
+    var actionTitle: String?
+    var action: (() -> Void)?
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: systemImage)
+                .font(.system(size: 28, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 58, height: 58)
+                .background(WristlistTheme.gradient(for: .violet), in: Circle())
+
+            VStack(spacing: 6) {
+                Text(title)
+                    .font(.headline.weight(.black))
+                    .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
+                Text(message)
+                    .font(.subheadline)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
+            }
+
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .frame(height: 44)
+                    .background(WristlistTheme.gradient(for: .sunset), in: Capsule())
+            }
+        }
+        .padding(22)
+        .frame(maxWidth: .infinity)
+        .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
+struct FestivalStatusBadge: View {
+    let status: AttendanceStatus
+    let palette: FestivalPalette
+
+    var body: some View {
+        Label(status.title, systemImage: status.systemImage)
+            .font(.caption.weight(.black))
+            .lineLimit(1)
+            .minimumScaleFactor(0.80)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(WristlistTheme.gradient(for: palette), in: Capsule())
+            .accessibilityLabel(status.title)
+    }
+}
+
+struct FestivalCompactRow: View {
+    let festival: WLFestival
+    var trailingText: String?
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        HStack(spacing: 12) {
+            FestivalArtworkView(festival: festival)
+                .frame(width: 64, height: 64)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(festival.name)
+                    .font(.headline.weight(.black))
+                    .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.80)
+
+                Text("\(festival.cityState) · \(festival.dateRangeText)")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
+                    .lineLimit(1)
+
+                Text(festival.genres.prefix(3).joined(separator: " / "))
+                    .font(.caption)
+                    .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+
+            if let trailingText {
+                Text(trailingText)
+                    .font(.subheadline.weight(.black))
+                    .monospacedDigit()
+                    .foregroundStyle(WristlistTheme.coral)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(festival.name), \(festival.cityState), \(festival.dateRangeText)")
     }
 }
