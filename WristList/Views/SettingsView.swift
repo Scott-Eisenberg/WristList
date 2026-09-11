@@ -34,10 +34,19 @@ struct SettingsView: View {
 
                 if let profile {
                     Section("Notifications") {
-                        Toggle("Festival reminders", isOn: Binding(get: { profile.notificationsEnabled }, set: { update(profile) { $0.notificationsEnabled = $1 }($0) }))
-                            .accessibilityLabel("Festival reminders")
-                        Toggle("Review likes and comments", isOn: Binding(get: { profile.reviewLikesEnabled }, set: { update(profile) { $0.reviewLikesEnabled = $1 }($0) }))
-                            .accessibilityLabel("Review likes and comments")
+                        Toggle("Festival reminders", isOn: Binding(get: { profile.notificationsEnabled }, set: { newValue in
+                            update(profile) { profile in
+                                profile.notificationsEnabled = newValue
+                            }
+                        }))
+                        .accessibilityLabel("Festival reminders")
+
+                        Toggle("Review likes and comments", isOn: Binding(get: { profile.reviewLikesEnabled }, set: { newValue in
+                            update(profile) { profile in
+                                profile.reviewLikesEnabled = newValue
+                            }
+                        }))
+                        .accessibilityLabel("Review likes and comments")
                     }
 
                     Section("Privacy") {

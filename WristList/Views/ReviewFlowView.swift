@@ -24,6 +24,11 @@ struct ReviewFlowView: View {
     @State private var showingDiscardConfirmation = false
     @State private var showingDeleteConfirmation = false
     @State private var actionError: String?
+    @State private var remoteFestivalResults: [ExternalFestivalSearchResult] = []
+    @State private var remoteSearchError: String?
+    @State private var remoteSearchQuery = ""
+    @State private var isRemoteSearchLoading = false
+    @State private var importingRemoteResultID: ExternalFestivalSearchResult.ID?
 
     init(
         festivals: [WLFestival],
@@ -64,14 +69,46 @@ struct ReviewFlowView: View {
         _initialDraft = State(initialValue: initialDraft)
     }
 
+    private var normalizedSearchText: String {
+        FestivalSearchService.normalizedSearchText(searchText)
+    }
+
+    private var searchableFestivals: [WLFestival] {
+        guard let selectedFestival, !festivals.contains(where: { $0.id == selectedFestival.id }) else {
+            return festivals
+        }
+
+        return festivals + [selectedFestival]
+    }
+
     private var filteredFestivals: [WLFestival] {
-        guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return festivals.sorted { $0.startDate < $1.startDate }
+        guard !normalizedSearchText.isEmpty else {
+            return searchableFestivals.sorted { $0.startDate < $1.startDate }
         }
 
         var filters = FestivalFilters()
         filters.searchText = searchText
-        return FestivalSearchService.results(from: festivals, filters: filters)
+        return FestivalSearchService.results(from: searchableFestivals, filters: filters)
+    }
+
+    private var shouldSearchRemoteFestivals: Bool {
+        normalizedSearchText.count >= FestivalExternalSearchService.minimumQueryLength
+    }
+
+    private var isRemoteSearchInProgress: Bool {
+        shouldSearchRemoteFestivals &&
+        (isRemoteSearchLoading || FestivalSearchService.normalizedSearchText(remoteSearchQuery) != normalizedSearchText)
+    }
+
+    private var visibleRemoteFestivalResults: [ExternalFestivalSearchResult] {
+        guard FestivalSearchService.normalizedSearchText(remoteSearchQuery) == normalizedSearchText else {
+            return []
+        }
+
+        let localFestivalNames = Set(searchableFestivals.map { FestivalSearchService.normalizedSearchText($0.name) })
+        return remoteFestivalResults.filter { result in
+            !localFestivalNames.contains(FestivalSearchService.normalizedSearchText(result.title))
+        }
     }
 
     private var validationIssues: [ReviewValidationIssue] {
@@ -133,6 +170,9 @@ struct ReviewFlowView: View {
             } message: {
                 Text(actionError ?? "Try again.")
             }
+            .task(id: normalizedSearchText) {
+                await refreshRemoteFestivalResults(for: searchText)
+            }
         }
     }
 
@@ -177,38 +217,82 @@ struct ReviewFlowView: View {
                 .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
 
             TextField("Search festivals, artists, cities, venues, genres", text: $searchText)
-                .textInputAutocapitalization(.words)
                 .padding(12)
                 .frame(minHeight: 44)
                 .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .accessibilityLabel("Search festivals")
 
-            if filteredFestivals.isEmpty {
+            if filteredFestivals.isEmpty && visibleRemoteFestivalResults.isEmpty && !isRemoteSearchInProgress && remoteSearchError == nil {
                 EmptyStateView(title: "No festival found", message: "Try a different festival, city, genre, venue, or artist.", systemImage: "magnifyingglass")
             } else {
-                VStack(spacing: 10) {
-                    ForEach(filteredFestivals) { festival in
-                        Button {
-                            selectedFestival = festival
-                            draft.festivalID = festival.id
-                        } label: {
-                            HStack(spacing: 12) {
-                                FestivalCompactRow(festival: festival)
-                                Image(systemName: selectedFestival?.id == festival.id ? "checkmark.circle.fill" : "circle")
-                                    .font(.title3.weight(.bold))
-                                    .foregroundStyle(selectedFestival?.id == festival.id ? WristlistTheme.coral : WristlistTheme.secondaryText(for: colorScheme))
+                if !filteredFestivals.isEmpty {
+                    VStack(spacing: 10) {
+                        ForEach(filteredFestivals) { festival in
+                            Button {
+                                selectFestival(festival)
+                            } label: {
+                                HStack(spacing: 12) {
+                                    FestivalCompactRow(festival: festival)
+                                    Image(systemName: selectedFestival?.id == festival.id ? "checkmark.circle.fill" : "circle")
+                                        .font(.title3.weight(.bold))
+                                        .foregroundStyle(selectedFestival?.id == festival.id ? WristlistTheme.coral : WristlistTheme.secondaryText(for: colorScheme))
+                                }
+                                .padding(12)
+                                .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .strokeBorder(selectedFestival?.id == festival.id ? WristlistTheme.coral.opacity(0.75) : WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
+                                }
                             }
-                            .padding(12)
-                            .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .strokeBorder(selectedFestival?.id == festival.id ? WristlistTheme.coral.opacity(0.75) : WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
-                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Select \(festival.name)")
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Select \(festival.name)")
                     }
                 }
+
+                remoteFestivalSearchSection
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var remoteFestivalSearchSection: some View {
+        if shouldSearchRemoteFestivals {
+            if isRemoteSearchInProgress {
+                ReviewFlowRemoteSearchStatusRow(
+                    systemImage: "magnifyingglass",
+                    title: "Searching online",
+                    message: "Looking for festival matches."
+                )
+            } else if let remoteSearchError {
+                ReviewFlowRemoteSearchStatusRow(
+                    systemImage: "wifi.exclamationmark",
+                    title: "Online search unavailable",
+                    message: remoteSearchError,
+                    actionTitle: "Retry",
+                    action: {
+                        Task {
+                            await refreshRemoteFestivalResults(for: searchText, debounce: false)
+                        }
+                    }
+                )
+            } else if !visibleRemoteFestivalResults.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    SectionTitleView(title: "Online Matches", subtitle: "Add one to use it in this review")
+
+                    LazyVStack(spacing: 10) {
+                        ForEach(visibleRemoteFestivalResults) { result in
+                            ReviewFlowExternalFestivalRow(
+                                result: result,
+                                isImporting: importingRemoteResultID == result.id,
+                                onAdd: {
+                                    importRemoteFestival(result)
+                                }
+                            )
+                        }
+                    }
+                }
+                .padding(.top, filteredFestivals.isEmpty ? 0 : 8)
             }
         }
     }
@@ -384,6 +468,69 @@ struct ReviewFlowView: View {
         LinearGradient(colors: [Color.gray.opacity(0.45), Color.gray.opacity(0.30)], startPoint: .leading, endPoint: .trailing)
     }
 
+    @MainActor
+    private func selectFestival(_ festival: WLFestival) {
+        selectedFestival = festival
+        draft.festivalID = festival.id
+    }
+
+    @MainActor
+    private func importRemoteFestival(_ result: ExternalFestivalSearchResult) {
+        importingRemoteResultID = result.id
+
+        do {
+            let festival = try WristlistDataController.importDiscoveredFestival(result, context: modelContext)
+            selectFestival(festival)
+
+            let importedFestivalName = FestivalSearchService.normalizedSearchText(festival.name)
+            remoteFestivalResults.removeAll { remoteResult in
+                FestivalSearchService.normalizedSearchText(remoteResult.title) == importedFestivalName
+            }
+            remoteSearchError = nil
+        } catch {
+            actionError = error.localizedDescription
+        }
+
+        importingRemoteResultID = nil
+    }
+
+    @MainActor
+    private func refreshRemoteFestivalResults(for query: String, debounce: Bool = true) async {
+        let normalizedQuery = FestivalSearchService.normalizedSearchText(query)
+        guard normalizedQuery.count >= FestivalExternalSearchService.minimumQueryLength else {
+            remoteFestivalResults = []
+            remoteSearchError = nil
+            remoteSearchQuery = ""
+            isRemoteSearchLoading = false
+            return
+        }
+
+        let searchQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        remoteSearchQuery = searchQuery
+        remoteSearchError = nil
+        isRemoteSearchLoading = true
+
+        do {
+            if debounce {
+                try await Task.sleep(nanoseconds: 350_000_000)
+            }
+            try Task.checkCancellation()
+
+            let results = try await FestivalExternalSearchService.search(query: searchQuery)
+            try Task.checkCancellation()
+
+            remoteFestivalResults = results
+            remoteSearchError = nil
+        } catch is CancellationError {
+            return
+        } catch {
+            remoteFestivalResults = []
+            remoteSearchError = error.localizedDescription
+        }
+
+        isRemoteSearchLoading = false
+    }
+
     private func statusButton(_ status: AttendanceStatus, detail: String) -> some View {
         Button {
             draft.status = status
@@ -526,6 +673,142 @@ private enum ReviewFlowStep: String, CaseIterable, Identifiable {
     }
 }
 
+private struct ReviewFlowExternalFestivalRow: View {
+    let result: ExternalFestivalSearchResult
+    let isImporting: Bool
+    let onAdd: () -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            thumbnail
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(result.title)
+                    .font(.headline.weight(.black))
+                    .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.84)
+
+                Text(result.subtitle)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
+                    .lineLimit(1)
+
+                Text(result.summary)
+                    .font(.caption)
+                    .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
+                    .lineLimit(2)
+
+                Text(result.sourceName)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(WristlistTheme.coral)
+                    .textCase(.uppercase)
+            }
+
+            Spacer(minLength: 8)
+
+            Button(action: onAdd) {
+                if isImporting {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(.white)
+                } else {
+                    Label("Add", systemImage: "plus")
+                }
+            }
+            .font(.caption.weight(.black))
+            .foregroundStyle(.white)
+            .frame(minWidth: 76, minHeight: 34)
+            .background(WristlistTheme.coral.opacity(isImporting ? 0.68 : 1), in: Capsule())
+            .disabled(isImporting)
+            .accessibilityLabel("Add \(result.title) to this review")
+        }
+        .padding(12)
+        .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
+        }
+    }
+
+    @ViewBuilder
+    private var thumbnail: some View {
+        AsyncImage(url: result.thumbnailURL) { phase in
+            switch phase {
+            case .empty:
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .success(let image):
+                image
+                    .resizable()
+                    .scaledToFill()
+            case .failure:
+                placeholderThumbnail
+            @unknown default:
+                placeholderThumbnail
+            }
+        }
+        .frame(width: 58, height: 58)
+        .background(WristlistTheme.tertiaryFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private var placeholderThumbnail: some View {
+        Image(systemName: "music.mic")
+            .font(.headline.weight(.bold))
+            .foregroundStyle(WristlistTheme.coral)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct ReviewFlowRemoteSearchStatusRow: View {
+    let systemImage: String
+    let title: String
+    let message: String
+    var actionTitle: String? = nil
+    var action: (() -> Void)? = nil
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.headline.weight(.black))
+                .foregroundStyle(WristlistTheme.coral)
+                .frame(width: 42, height: 42)
+                .background(WristlistTheme.tertiaryFill(for: colorScheme), in: Circle())
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline.weight(.black))
+                    .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
+
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 8)
+
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(WristlistTheme.coral)
+            }
+        }
+        .padding(12)
+        .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
 private struct ScoreSlider: View {
     let title: String
     @Binding var score: Double
@@ -543,11 +826,11 @@ private struct ScoreSlider: View {
                 Text(score, format: .number.precision(.fractionLength(1)))
                     .font(.headline.weight(.black))
                     .monospacedDigit()
-                    .foregroundStyle(WristlistTheme.coral)
+                    .foregroundStyle(WristlistTheme.scoreGreen)
             }
 
             Slider(value: $score, in: 0...10, step: 0.1)
-                .tint(WristlistTheme.colors(for: palette).first ?? WristlistTheme.coral)
+                .tint(WristlistTheme.scoreGreen)
                 .accessibilityLabel(title)
                 .accessibilityValue("\(score, specifier: "%.1f") out of 10")
         }

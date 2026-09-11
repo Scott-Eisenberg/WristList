@@ -1,6 +1,6 @@
 # Wristlist Project Status
 
-Last updated: September 8, 2026
+Last updated: September 9, 2026
 
 ## Existing Project State
 
@@ -27,8 +27,8 @@ Last updated: September 8, 2026
 
 ## Current Work In Progress
 
-- Final validation is blocked by Xcode/simulator service availability in the current tool environment.
-- Local source cleanup after the main MVP implementation is complete.
+- Visual-system refinement is complete for this pass: the app now uses flatter surfaces, smaller type, cleaner list/card hierarchy, restrained teal branding, score green, and fewer decorative effects.
+- Unit tests, preview rendering, and simulator launch remain blocked by Xcode/simulator service availability in the current tool environment.
 
 ## Completed Work
 
@@ -48,14 +48,19 @@ Last updated: September 8, 2026
 - Added unit tests covering rating validation, search/filtering, save/unsave, attendance state, ranking moves, seed idempotency, and review create/edit/delete behavior.
 - Added SwiftUI previews for the app shell and major screens.
 - Removed stale comment-array plumbing from review-card call sites so comments are queried and updated from persisted local data.
+- Reworked the shared theme toward solid paper/ink surfaces, restrained teal branding, score green, quieter tags, cleaner thumbnails, smaller headers, and reduced decorative glow.
+- Removed remaining oversized screen headers and hard-coded translucent fills from the redesigned surfaces.
 
 ## Validation Performed
 
-- Earlier Xcode MCP build succeeded after the main SwiftData MVP screens were implemented and before the latest test cleanup plus stale-comments cleanup.
+- Xcode MCP `BuildProject` succeeded on September 9, 2026 after the visual redesign pass.
 - After the final cleanup, `xcodebuild -list -project WristList.xcodeproj` succeeded and confirmed scheme `WristList` with targets `WristList`, `WristListTests`, and `WristListUITests`.
 - After the final cleanup, `xcodebuild -project WristList.xcodeproj -scheme WristList -destination 'generic/platform=iOS Simulator' -derivedDataPath .derivedData build` reached Swift compilation but failed because nested `sandbox-exec` returned `Operation not permitted`.
-- Xcode MCP `BuildProject` currently times out after 120 seconds.
-- CoreSimulatorService is unavailable in this tool environment with `Connection invalid` / `Connection refused`, so simulator launch, manual flow checks, screenshots, and UI tests cannot be completed from here.
+- A concise build-output scan showed the reported Swift errors are SwiftData `@Model` / `@Query` and preview macro failures caused by `swift-plugin-server` producing malformed responses after sandbox application failed. No independent app-source diagnostic was surfaced before that infrastructure failure.
+- Xcode diagnostics found no issues in the main redesign files immediately before the successful build: `WristlistTheme.swift`, `CommonComponents.swift`, `ProfileComponents.swift`, `FeedView.swift`, `ReviewCardView.swift`, `DiscoverView.swift`, `MyListView.swift`, `FestivalDetailView.swift`, `ProfileView.swift`, `ReviewFlowView.swift`, and `UserProfileDetailView.swift`.
+- Xcode MCP `RunAllTests` timed out after 120 seconds.
+- Direct `xcodebuild test` could not find a concrete `iPhone 17` simulator because CoreSimulatorService is unavailable in this tool environment with `Connection invalid` / `Connection refused`.
+- Xcode MCP preview rendering timed out after 120 seconds, so screenshots and visual simulator checks could not be completed from here.
 
 ## Remaining Work
 

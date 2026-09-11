@@ -10,15 +10,29 @@ struct ProfileView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Query private var festivals: [WLFestival]
     @Query private var reviews: [WLReview]
-    @Query private var comments: [WLComment]
     @Query private var profiles: [WLProfile]
 
     @State private var selectedList: ProfileFestivalListFilter = .ranked
     @State private var isShowingEditProfile = false
     @State private var isShowingSettings = false
+    @State private var userSearchText = ""
 
     private var profile: WLProfile? {
         profiles.first { $0.id == WristlistDataController.currentUserID } ?? profiles.first
+    }
+
+    private var isSearchingUsers: Bool {
+        !FestivalSearchService.normalizedSearchText(userSearchText).isEmpty
+    }
+
+    private var userSearchResults: [UserSearchResult] {
+        UserSearchService.results(
+            profiles: profiles,
+            reviews: reviews,
+            festivals: festivals,
+            friendMatches: SampleProfileData.friendMatches(),
+            query: userSearchText
+        )
     }
 
     private var currentUserReviews: [WLReview] {
@@ -55,30 +69,34 @@ struct ProfileView: View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
-                    if let profile {
-                        ProfileHeaderCard(profile: profile, metrics: metrics, onEdit: { isShowingEditProfile = true }, onSettings: { isShowingSettings = true })
+                    if isSearchingUsers {
+                        UserSearchResultsSection(results: userSearchResults)
                     } else {
-                        EmptyStateView(title: "Profile loading", message: "Your local profile is being prepared.", systemImage: "person.crop.circle")
+                        if let profile {
+                            ProfileHeaderCard(profile: profile, metrics: metrics, onEdit: { isShowingEditProfile = true }, onSettings: { isShowingSettings = true })
+                        } else {
+                            EmptyStateView(title: "Profile loading", message: "Your local profile is being prepared.", systemImage: "person.crop.circle")
+                        }
+
+                        ProfileStatsGrid(metrics: metrics)
+
+                        TasteProfileSection(signals: SampleProfileData.tasteSignals(festivals: festivals, reviews: reviews))
+
+                        FestivalListSection(
+                            selectedList: $selectedList,
+                            rankedFestivals: rankedFestivals,
+                            savedFestivals: savedFestivals,
+                            wantToAttendFestivals: wantToAttendFestivals
+                        )
+
+                        RecentReviewsSection(reviews: currentUserReviews, festivals: festivals, profile: profile)
+
+                        CityCoverageSection(cityStats: SampleProfileData.cityStats(from: festivals))
+
+                        WristbandMemoriesSection(memories: SampleProfileData.wristbandMemories(from: festivals))
+
+                        FriendMatchesSection(matches: SampleProfileData.friendMatches())
                     }
-
-                    ProfileStatsGrid(metrics: metrics)
-
-                    TasteProfileSection(signals: SampleProfileData.tasteSignals(festivals: festivals, reviews: reviews))
-
-                    FestivalListSection(
-                        selectedList: $selectedList,
-                        rankedFestivals: rankedFestivals,
-                        savedFestivals: savedFestivals,
-                        wantToAttendFestivals: wantToAttendFestivals
-                    )
-
-                    RecentReviewsSection(reviews: currentUserReviews, festivals: festivals, profile: profile, comments: comments)
-
-                    CityCoverageSection(cityStats: SampleProfileData.cityStats(from: festivals))
-
-                    WristbandMemoriesSection(memories: SampleProfileData.wristbandMemories(from: festivals))
-
-                    FriendMatchesSection(matches: SampleProfileData.friendMatches())
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 16)
@@ -89,6 +107,7 @@ struct ProfileView: View {
 #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
 #endif
+            .searchable(text: $userSearchText, prompt: "Search users, handles, festivals")
         }
         .sheet(isPresented: $isShowingEditProfile) {
             if let profile {
@@ -98,6 +117,81 @@ struct ProfileView: View {
         .sheet(isPresented: $isShowingSettings) {
             SettingsView()
         }
+    }
+}
+
+private struct UserSearchResultsSection: View {
+    let results: [UserSearchResult]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionTitleView(title: "People", subtitle: "\(results.count) matching users")
+
+            if results.isEmpty {
+                EmptyStateView(
+                    title: "No users found",
+                    message: "Try a name, handle, city, or festival from your local activity.",
+                    systemImage: "person.crop.circle.badge.questionmark"
+                )
+            } else {
+                LazyVStack(spacing: 10) {
+                    ForEach(results) { result in
+                        NavigationLink {
+                            UserProfileDetailView(searchResult: result)
+                        } label: {
+                            UserSearchResultRow(result: result)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct UserSearchResultRow: View {
+    let result: UserSearchResult
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        HStack(spacing: 12) {
+            AvatarCircle(initials: result.initials, palette: result.palette, size: 46, fontSize: 14)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(result.displayName)
+                    .font(.subheadline.weight(.black))
+                    .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+
+                Text(result.subtitle)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
+                    .lineLimit(1)
+
+                Text(result.detailText)
+                    .font(.caption)
+                    .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 8)
+
+            Text(result.accessoryText)
+                .font(.caption.weight(.black))
+                .foregroundStyle(WristlistTheme.scoreGreen)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+        }
+        .padding(12)
+        .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(result.displayName), \(result.subtitle), \(result.detailText)")
     }
 }
 
@@ -147,6 +241,8 @@ private struct FestivalListSection: View {
     let savedFestivals: [WLFestival]
     let wantToAttendFestivals: [WLFestival]
 
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionTitleView(title: "Festival Lists", subtitle: selectedList.subtitle)
@@ -195,7 +291,7 @@ private struct FestivalListSection: View {
                 } label: {
                     FestivalCompactRow(festival: festival, trailingText: festival.status.title)
                         .padding(12)
-                        .background(WristlistTheme.cardFill(for: .dark).opacity(0.9), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
@@ -207,7 +303,6 @@ private struct RecentReviewsSection: View {
     let reviews: [WLReview]
     let festivals: [WLFestival]
     let profile: WLProfile?
-    let comments: [WLComment]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -218,7 +313,7 @@ private struct RecentReviewsSection: View {
             } else {
                 ForEach(reviews.prefix(2)) { review in
                     if let festival = festivals.first(where: { $0.id == review.festivalID }) {
-                        ReviewCardView(review: review, festival: festival, profile: profile, comments: comments)
+                        ReviewCardView(review: review, festival: festival, profile: profile)
                     }
                 }
             }

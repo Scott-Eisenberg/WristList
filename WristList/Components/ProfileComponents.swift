@@ -16,18 +16,16 @@ struct ProfileHeaderCard: View {
     var body: some View {
         VStack(spacing: 18) {
             ZStack(alignment: .topTrailing) {
-                WristlistTheme.gradient(for: profile.palette)
-                    .frame(height: 124)
+                WristlistTheme.brand
+                    .frame(height: 86)
                     .overlay {
                         HStack(spacing: 10) {
-                            ForEach(0..<8, id: \.self) { index in
+                            ForEach(0..<7, id: \.self) { index in
                                 RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                    .fill(Color.white.opacity(index.isMultiple(of: 2) ? 0.28 : 0.12))
-                                    .frame(width: 22, height: 132)
-                                    .rotationEffect(.degrees(Double(index - 4) * 4))
+                                    .fill(Color.white.opacity(index.isMultiple(of: 2) ? 0.20 : 0.10))
+                                    .frame(width: 18, height: 92)
                             }
                         }
-                        .offset(y: 8)
                     }
 
                 HeaderIconButton(systemImage: "gearshape", accessibilityLabel: "Open settings", action: onSettings)
@@ -35,28 +33,27 @@ struct ProfileHeaderCard: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay(alignment: .bottomLeading) {
-                AvatarCircle(initials: profile.avatarInitials, palette: profile.palette, size: 86, fontSize: 28)
+                AvatarCircle(initials: profile.avatarInitials, palette: profile.palette, size: 76, fontSize: 25)
                     .overlay {
                         Circle().strokeBorder(Color.white.opacity(0.78), lineWidth: 3)
                     }
-                    .shadow(color: WristlistTheme.coral.opacity(0.26), radius: 18, y: 10)
-                    .offset(x: 18, y: 42)
+                    .offset(x: 18, y: 36)
                     .accessibilityLabel("Profile picture placeholder with initials \(profile.avatarInitials)")
             }
-            .padding(.bottom, 34)
+            .padding(.bottom, 30)
 
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(profile.displayName)
-                            .font(.system(.title, design: .rounded).weight(.black))
+                            .font(.title2.weight(.bold))
                             .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
                             .lineLimit(2)
                             .minimumScaleFactor(0.82)
 
                         Text(profile.username)
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(WristlistTheme.coral)
+                            .foregroundStyle(WristlistTheme.brand)
                     }
 
                     Spacer(minLength: 8)
@@ -65,7 +62,7 @@ struct ProfileHeaderCard: View {
                         Text(metrics.averageRating, format: .number.precision(.fractionLength(1)))
                             .font(.headline.weight(.black))
                             .monospacedDigit()
-                            .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
+                            .foregroundStyle(WristlistTheme.scoreGreen)
                         Text("avg rating")
                             .font(.caption2.weight(.bold))
                             .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
@@ -101,7 +98,7 @@ struct ProfileHeaderCard: View {
                         .foregroundStyle(.white)
                         .padding(.horizontal, 16)
                         .frame(height: 44)
-                        .background(WristlistTheme.gradient(for: .violet), in: Capsule())
+                        .background(WristlistTheme.brand, in: Capsule())
                         .accessibilityLabel("Edit profile")
                 }
             }
@@ -226,7 +223,7 @@ struct TasteSignalCard: View {
             Spacer(minLength: 0)
         }
         .padding(12)
-        .background(Color.white.opacity(colorScheme == .dark ? 0.06 : 0.56), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(WristlistTheme.tertiaryFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(signal.title), \(signal.detail)")
     }
@@ -236,10 +233,15 @@ struct RankedFestivalRowView: View {
     let festival: WLFestival
     let canMoveUp: Bool
     let canMoveDown: Bool
-    var moveUp: (() -> Void)?
-    var moveDown: (() -> Void)?
+    var moveUp: (() -> Void)? = nil
+    var moveDown: (() -> Void)? = nil
 
     @Environment(\.colorScheme) private var colorScheme
+
+    @MainActor
+    private var attendedText: String {
+        festival.attendedDate.map(DateFormatting.monthYear) ?? festival.dateRangeText
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -272,10 +274,10 @@ struct RankedFestivalRowView: View {
                     Text(festival.communityRating, format: .number.precision(.fractionLength(1)))
                         .font(.subheadline.weight(.black))
                         .monospacedDigit()
-                        .foregroundStyle(WristlistTheme.coral)
+                        .foregroundStyle(WristlistTheme.scoreGreen)
                 }
 
-                Text("\(festival.cityState) · \(festival.attendedDate.map(DateFormatting.monthYear) ?? festival.dateRangeText)")
+                Text("\(festival.cityState) · \(attendedText)")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
                     .lineLimit(1)
@@ -311,7 +313,7 @@ struct RankedFestivalRowView: View {
             Image(systemName: systemImage)
                 .font(.caption.weight(.black))
                 .frame(width: 32, height: 32)
-                .background(Color.white.opacity(colorScheme == .dark ? 0.08 : 0.56), in: Circle())
+                .background(WristlistTheme.tertiaryFill(for: colorScheme), in: Circle())
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
@@ -336,7 +338,7 @@ struct CityCoverageCard: View {
                 Text("\(stat.count)")
                     .font(.subheadline.weight(.black))
                     .monospacedDigit()
-                    .foregroundStyle(WristlistTheme.coral)
+                    .foregroundStyle(WristlistTheme.scoreGreen)
             }
 
             GeometryReader { proxy in
@@ -357,7 +359,7 @@ struct CityCoverageCard: View {
                 .lineLimit(1)
         }
         .padding(12)
-        .background(Color.white.opacity(colorScheme == .dark ? 0.06 : 0.56), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(WristlistTheme.tertiaryFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(stat.city), \(stat.count) festivals, top festival \(stat.topFestivalName)")
     }
@@ -423,7 +425,7 @@ struct FriendMatchCard: View {
             Text("\(match.matchPercent)%")
                 .font(.headline.weight(.black))
                 .monospacedDigit()
-                .foregroundStyle(WristlistTheme.coral)
+                .foregroundStyle(WristlistTheme.scoreGreen)
         }
         .padding(12)
         .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))

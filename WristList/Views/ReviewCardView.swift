@@ -10,21 +10,14 @@ struct ReviewCardView: View {
     let review: WLReview
     let festival: WLFestival
     let profile: WLProfile?
-    let comments: [WLComment]
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
     @State private var isShowingComments = false
     @State private var actionError: String?
 
-    private var reviewComments: [WLComment] {
-        comments
-            .filter { $0.reviewID == review.id }
-            .sorted { $0.createdAt < $1.createdAt }
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
                 NavigationLink {
                     UserProfileDetailView(review: review)
@@ -39,13 +32,13 @@ struct ReviewCardView: View {
                         UserProfileDetailView(review: review)
                     } label: {
                         Text(review.userName)
-                            .font(.headline.weight(.bold))
+                            .font(.subheadline.weight(.bold))
                             .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
                     }
                     .buttonStyle(.plain)
 
                     Text("\(review.userHandle) reviewed \(festival.name)")
-                        .font(.caption.weight(.medium))
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
                         .lineLimit(2)
                 }
@@ -87,7 +80,7 @@ struct ReviewCardView: View {
                 onSave: toggleSave
             )
         }
-        .padding(16)
+        .padding(14)
         .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -95,7 +88,7 @@ struct ReviewCardView: View {
         }
         .accessibilityElement(children: .contain)
         .sheet(isPresented: $isShowingComments) {
-            CommentsSheet(review: review, comments: reviewComments, profile: profile)
+            CommentsSheet(review: review, profile: profile)
         }
         .alert("Could not update review", isPresented: Binding(get: { actionError != nil }, set: { if !$0 { actionError = nil } })) {
             Button("OK", role: .cancel) { actionError = nil }
@@ -141,7 +134,7 @@ private struct FestivalReviewSummary: View {
                 VStack(alignment: .leading, spacing: 8) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(festival.name)
-                            .font(.title3.weight(.black))
+                            .font(.headline.weight(.black))
                             .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
                             .lineLimit(1)
                             .minimumScaleFactor(0.82)
@@ -166,7 +159,7 @@ private struct FestivalReviewSummary: View {
             }
 
             Text(review.reviewText.isEmpty ? "Logged this festival without a written review." : review.reviewText)
-                .font(.body)
+                .font(.subheadline)
                 .lineSpacing(2)
                 .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
                 .fixedSize(horizontal: false, vertical: true)
@@ -200,6 +193,8 @@ private struct ReviewActionBar: View {
     let onComment: () -> Void
     let onSave: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         HStack(spacing: 8) {
             ReviewActionButton(
@@ -223,8 +218,10 @@ private struct ReviewActionBar: View {
                     .font(.subheadline.weight(.bold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
+                    .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
                     .padding(.horizontal, 12)
                     .frame(height: 36)
+                    .background(WristlistTheme.tertiaryFill(for: colorScheme), in: Capsule())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Share review")
@@ -261,7 +258,7 @@ private struct ReviewActionButton: View {
                 .foregroundStyle(isActive ? WristlistTheme.coral : WristlistTheme.secondaryText(for: colorScheme))
                 .padding(.horizontal, 12)
                 .frame(height: 36)
-                .background(Color.white.opacity(colorScheme == .dark ? 0.06 : 0.55), in: Capsule())
+                .background(WristlistTheme.tertiaryFill(for: colorScheme), in: Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
@@ -270,13 +267,19 @@ private struct ReviewActionButton: View {
 
 private struct CommentsSheet: View {
     let review: WLReview
-    let comments: [WLComment]
     let profile: WLProfile?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Query private var allComments: [WLComment]
     @State private var commentText = ""
     @State private var actionError: String?
+
+    private var comments: [WLComment] {
+        allComments
+            .filter { $0.reviewID == review.id }
+            .sorted { $0.createdAt < $1.createdAt }
+    }
 
     var body: some View {
         NavigationStack {
@@ -320,7 +323,9 @@ private struct CommentsSheet: View {
                 }
             }
             .navigationTitle("Comments")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -351,7 +356,6 @@ private struct CommentsSheet: View {
     let context = container.mainContext
     let festivals = (try? context.fetch(FetchDescriptor<WLFestival>())) ?? []
     let reviews = (try? context.fetch(FetchDescriptor<WLReview>())) ?? []
-    let comments = (try? context.fetch(FetchDescriptor<WLComment>())) ?? []
     let profiles = (try? context.fetch(FetchDescriptor<WLProfile>())) ?? []
     let review = reviews.first
     let festival = review.flatMap { selectedReview in festivals.first { $0.id == selectedReview.festivalID } }
@@ -361,7 +365,7 @@ private struct CommentsSheet: View {
             .ignoresSafeArea()
 
         if let review, let festival {
-            ReviewCardView(review: review, festival: festival, profile: profiles.first, comments: comments)
+            ReviewCardView(review: review, festival: festival, profile: profiles.first)
                 .padding()
         }
     }

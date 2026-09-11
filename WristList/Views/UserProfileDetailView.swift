@@ -7,6 +7,7 @@ import SwiftData
 import SwiftUI
 
 struct UserProfileDetailView: View {
+    let userID: String
     let displayName: String
     let username: String
     let initials: String
@@ -17,10 +18,10 @@ struct UserProfileDetailView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Query private var reviews: [WLReview]
     @Query private var festivals: [WLFestival]
-    @Query private var comments: [WLComment]
     @Query private var profiles: [WLProfile]
 
     init(review: WLReview) {
+        self.userID = review.userID
         self.displayName = review.userName
         self.username = review.userHandle
         self.initials = review.userInitials
@@ -30,6 +31,7 @@ struct UserProfileDetailView: View {
     }
 
     init(profile: WLProfile) {
+        self.userID = profile.id
         self.displayName = profile.displayName
         self.username = profile.username
         self.initials = profile.avatarInitials
@@ -38,14 +40,54 @@ struct UserProfileDetailView: View {
         self.isCurrentUser = true
     }
 
+    init(searchResult: UserSearchResult) {
+        self.userID = searchResult.id
+        self.displayName = searchResult.displayName
+        self.username = searchResult.username
+        self.initials = searchResult.initials
+        self.palette = searchResult.palette
+        self.bio = searchResult.bio
+        self.isCurrentUser = searchResult.isCurrentUser
+    }
+
     private var profileReviews: [WLReview] {
-        reviews
-            .filter { $0.userName == displayName }
-            .sorted { $0.createdAt > $1.createdAt }
+        Self.reviewsForProfile(
+            userID: userID,
+            displayName: displayName,
+            username: username,
+            isCurrentUser: isCurrentUser,
+            reviews: reviews
+        )
     }
 
     private var currentProfile: WLProfile? {
         profiles.first { $0.id == WristlistDataController.currentUserID } ?? profiles.first
+    }
+
+    static func reviewsForProfile(
+        userID: String,
+        displayName: String,
+        username: String,
+        isCurrentUser: Bool,
+        reviews: [WLReview]
+    ) -> [WLReview] {
+        let normalizedUsername = FestivalSearchService.normalizedSearchText(username)
+        let normalizedDisplayName = FestivalSearchService.normalizedSearchText(displayName)
+
+        return reviews
+            .filter { review in
+                guard isCurrentUser || review.isVisibleToFriends else {
+                    return false
+                }
+
+                if !userID.isEmpty {
+                    return review.userID == userID
+                }
+
+                return FestivalSearchService.normalizedSearchText(review.userHandle) == normalizedUsername ||
+                    FestivalSearchService.normalizedSearchText(review.userName) == normalizedDisplayName
+            }
+            .sorted { $0.createdAt > $1.createdAt }
     }
 
     var body: some View {
@@ -57,12 +99,12 @@ struct UserProfileDetailView: View {
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(displayName)
-                            .font(.system(.largeTitle, design: .rounded).weight(.black))
+                            .font(.title2.weight(.bold))
                             .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
                             .lineLimit(2)
                         Text(username)
                             .font(.subheadline.weight(.bold))
-                            .foregroundStyle(WristlistTheme.coral)
+                            .foregroundStyle(WristlistTheme.brand)
                     }
 
                     Text(bio)
@@ -90,7 +132,7 @@ struct UserProfileDetailView: View {
                     LazyVStack(spacing: 14) {
                         ForEach(profileReviews) { review in
                             if let festival = festivals.first(where: { $0.id == review.festivalID }) {
-                                ReviewCardView(review: review, festival: festival, profile: currentProfile, comments: comments)
+                                ReviewCardView(review: review, festival: festival, profile: currentProfile)
                             }
                         }
                     }

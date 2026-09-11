@@ -28,6 +28,13 @@ enum WristlistDataController {
             return
         }
 
+        let existingFestivals = try context.fetch(FetchDescriptor<WLFestival>())
+        if !existingFestivals.isEmpty {
+            context.insert(WLAppMetadata(key: seedMarkerKey, value: "true"))
+            try saveIfNeeded(context)
+            return
+        }
+
         try seedSampleData(in: context)
     }
 
@@ -49,6 +56,65 @@ enum WristlistDataController {
         context.insert(profile)
         try saveIfNeeded(context)
         return profile
+    }
+
+    @discardableResult
+    static func importDiscoveredFestival(_ result: ExternalFestivalSearchResult, context: ModelContext) throws -> WLFestival {
+        let trimmedTitle = result.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !FestivalSearchService.normalizedSearchText(trimmedTitle).isEmpty else {
+            throw FestivalImportError.missingTitle
+        }
+
+        let festivals = try context.fetch(FetchDescriptor<WLFestival>())
+        let normalizedTitle = FestivalSearchService.normalizedSearchText(trimmedTitle)
+
+        if let existingFestival = festivals.first(where: { festival in
+            festival.id == result.id || FestivalSearchService.normalizedSearchText(festival.name) == normalizedTitle
+        }) {
+            if !existingFestival.isSaved || existingFestival.status == .none {
+                existingFestival.isSaved = true
+                if existingFestival.status == .none {
+                    existingFestival.status = .saved
+                }
+                existingFestival.updatedAt = .now
+                try saveIfNeeded(context)
+            }
+            return existingFestival
+        }
+
+        let placeholderDate = Calendar.current.startOfDay(for: .now)
+        let festival = WLFestival(
+            id: uniqueDiscoveredFestivalID(for: result, existingFestivals: festivals),
+            name: trimmedTitle,
+            city: "Location",
+            state: "TBD",
+            country: "Unknown",
+            venue: "Details from \(result.sourceName)",
+            startDate: placeholderDate,
+            endDate: placeholderDate,
+            genres: inferredGenres(from: result),
+            lineup: [],
+            summary: result.summary,
+            detailDescription: discoveredDetailDescription(for: result),
+            palette: palette(for: trimmedTitle),
+            communityRating: 0,
+            communityReviewCount: 0,
+            lineupScore: 0,
+            productionScore: 0,
+            venueScore: 0,
+            organizationScore: 0,
+            valueScore: 0,
+            friendNames: [],
+            isTrending: false,
+            isRecommended: false,
+            isNearUser: false,
+            isSaved: true,
+            status: .saved
+        )
+
+        context.insert(festival)
+        try saveIfNeeded(context)
+        return festival
     }
 
     static func toggleSave(_ festival: WLFestival, context: ModelContext) throws {
@@ -97,8 +163,14 @@ enum WristlistDataController {
 
         if draft.status == .wantToGo {
             festival.attendedDate = nil
+            festival.personalRank = 0
+            if let existingReview {
+                context.delete(existingReview)
+                let festivals = try context.fetch(FetchDescriptor<WLFestival>())
+                RankingService.normalizeRanks(for: festivals)
+            }
             try saveIfNeeded(context)
-            return existingReview
+            return nil
         }
 
         festival.attendedDate = draft.attendedDate
@@ -201,6 +273,87 @@ enum WristlistDataController {
         }
     }
 
+    private static func uniqueDiscoveredFestivalID(for result: ExternalFestivalSearchResult, existingFestivals: [WLFestival]) -> String {
+        let sourceSlug = slug(from: result.sourceName)
+        let titleSlug = slug(from: result.title)
+        let fallbackSlug = slug(from: result.id)
+        let existingIDs = Set(existingFestivals.map(\.id))
+        let baseID = [
+            "discovered",
+            sourceSlug.isEmpty ? "source" : sourceSlug,
+            titleSlug.isEmpty ? fallbackSlug : titleSlug
+        ]
+        .filter { !$0.isEmpty }
+        .joined(separator: "-")
+
+        guard existingIDs.contains(baseID) else {
+            return baseID
+        }
+
+        var suffix = 2
+        while existingIDs.contains("\(baseID)-\(suffix)") {
+            suffix += 1
+        }
+        return "\(baseID)-\(suffix)"
+    }
+
+    private static func slug(from value: String) -> String {
+        FestivalSearchService.normalizedSearchText(value)
+            .split(separator: " ")
+            .joined(separator: "-")
+    }
+
+    private static func inferredGenres(from result: ExternalFestivalSearchResult) -> [String] {
+        let searchableText = FestivalSearchService.normalizedSearchText(
+            [result.title, result.description, result.summary]
+                .compactMap { $0 }
+                .joined(separator: " ")
+        )
+        let tokens = Set(searchableText.split(separator: " ").map(String.init))
+        var genres: [String] = []
+
+        func append(_ genre: String, when matches: Bool) {
+            guard matches, !genres.contains(genre) else { return }
+            genres.append(genre)
+        }
+
+        append("Electronic", when: tokens.contains("edm") || tokens.contains("electronic") || searchableText.contains("dance music"))
+        append("House", when: tokens.contains("house"))
+        append("Techno", when: tokens.contains("techno"))
+        append("Bass", when: tokens.contains("bass") || tokens.contains("dubstep"))
+        append("Trance", when: tokens.contains("trance"))
+        append("Rock", when: tokens.contains("rock"))
+        append("Indie", when: tokens.contains("indie"))
+        append("Hip-Hop", when: searchableText.contains("hip hop") || searchableText.contains("hip-hop"))
+        append("Pop", when: tokens.contains("pop"))
+        append("Country", when: tokens.contains("country"))
+        append("Folk", when: tokens.contains("folk"))
+
+        return genres.isEmpty ? ["Festival"] : genres
+    }
+
+    private static func discoveredDetailDescription(for result: ExternalFestivalSearchResult) -> String {
+        let summary = result.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sourceNote = "Added from \(result.sourceName). Dates, location, venue, lineup, and organizer details are placeholders until a richer event source is connected."
+
+        return [summary, sourceNote]
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n\n")
+    }
+
+    private static func palette(for title: String) -> FestivalPalette {
+        let palettes = FestivalPalette.allCases
+        guard !palettes.isEmpty else {
+            return .sunset
+        }
+
+        let value = FestivalSearchService.normalizedSearchText(title)
+            .unicodeScalars
+            .reduce(0) { $0 + Int($1.value) }
+
+        return palettes[value % palettes.count]
+    }
+
     private static func seedSampleData(in context: ModelContext) throws {
         for festival in SampleFeedData.festivals() {
             context.insert(festival)
@@ -231,5 +384,16 @@ enum WristlistDataController {
         let festivals = (try? context.fetch(FetchDescriptor<WLFestival>())) ?? []
         let existingRanks = festivals.map(\.personalRank).filter { $0 > 0 }
         return (existingRanks.max() ?? 0) + 1
+    }
+}
+
+private enum FestivalImportError: LocalizedError {
+    case missingTitle
+
+    var errorDescription: String? {
+        switch self {
+        case .missingTitle:
+            "The discovered festival is missing a title."
+        }
     }
 }

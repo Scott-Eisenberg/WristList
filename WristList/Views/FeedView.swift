@@ -12,7 +12,6 @@ struct FeedView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var festivals: [WLFestival]
     @Query private var reviews: [WLReview]
-    @Query private var comments: [WLComment]
     @Query private var profiles: [WLProfile]
 
     @State private var isRefreshing = false
@@ -62,7 +61,6 @@ struct FeedView: View {
                             reviews: friendReviews,
                             festivals: festivals,
                             profile: currentProfile,
-                            comments: comments,
                             onLogFestival: { isShowingReviewFlow = true }
                         )
                     }
@@ -112,11 +110,11 @@ private struct FeedHeaderView: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Wristlist")
-                    .font(.system(.largeTitle, design: .rounded).weight(.black))
+                    .font(.system(.title, design: .serif).weight(.bold))
                     .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
 
-                Text("Live notes from the festival circuit")
-                    .font(.subheadline.weight(.medium))
+                Text("Friend activity and festival rankings")
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
             }
 
@@ -180,9 +178,8 @@ private struct LogFestivalButton: View {
             }
             .foregroundStyle(.white)
             .padding(.horizontal, 18)
-            .frame(minHeight: 58)
-            .background(WristlistTheme.gradient(for: .sunset), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .shadow(color: WristlistTheme.coral.opacity(0.22), radius: isPressed ? 8 : 16, y: isPressed ? 4 : 10)
+            .frame(minHeight: 52)
+            .background(WristlistTheme.brand, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .scaleEffect(isPressed ? 0.98 : 1)
         }
         .buttonStyle(.plain)
@@ -252,13 +249,13 @@ private struct UpcomingFestivalCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             FestivalArtworkView(festival: festival)
-                .frame(width: 174, height: 134)
+                .frame(width: 162, height: 108)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             VStack(alignment: .leading, spacing: 7) {
                 Text(festival.dateRangeText)
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(WristlistTheme.coral)
+                    .foregroundStyle(WristlistTheme.brand)
 
                 Text(festival.name)
                     .font(.headline.weight(.bold))
@@ -295,7 +292,7 @@ private struct UpcomingFestivalCard: View {
             .accessibilityLabel(festival.isSaved ? "Remove \(festival.name) from saved festivals" : "Save \(festival.name)")
         }
         .padding(10)
-        .frame(width: 194)
+        .frame(width: 182)
         .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -320,7 +317,6 @@ private struct FriendsReviewsSection: View {
     let reviews: [WLReview]
     let festivals: [WLFestival]
     let profile: WLProfile?
-    let comments: [WLComment]
     let onLogFestival: () -> Void
 
     var body: some View {
@@ -339,7 +335,7 @@ private struct FriendsReviewsSection: View {
                 LazyVStack(spacing: 14) {
                     ForEach(reviews) { review in
                         if let festival = festivals.first(where: { $0.id == review.festivalID }) {
-                            ReviewCardView(review: review, festival: festival, profile: profile, comments: comments)
+                            ReviewCardView(review: review, festival: festival, profile: profile)
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                     }
@@ -360,7 +356,9 @@ private struct NotificationsSheet: View {
                 Label("Your Midnight Atlas review passed 30 likes", systemImage: "heart.fill")
             }
             .navigationTitle("Notifications")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }

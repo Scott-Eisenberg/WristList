@@ -12,7 +12,6 @@ struct FestivalDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
     @Query private var reviews: [WLReview]
-    @Query private var comments: [WLComment]
     @Query private var profiles: [WLProfile]
 
     @State private var isShowingReviewFlow = false
@@ -75,10 +74,10 @@ struct FestivalDetailView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(festival.name)
-                        .font(.system(.largeTitle, design: .rounded).weight(.black))
+                        .font(.title2.weight(.bold))
                         .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
                         .lineLimit(2)
-                        .minimumScaleFactor(0.76)
+                        .minimumScaleFactor(0.84)
 
                     Spacer(minLength: 8)
 
@@ -137,7 +136,7 @@ struct FestivalDetailView: View {
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: 50)
-                    .background(WristlistTheme.gradient(for: .sunset), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .background(WristlistTheme.brand, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
             .buttonStyle(.plain)
             .accessibilityLabel(currentUserReview == nil ? "Write review" : "Edit your review")
@@ -176,7 +175,7 @@ struct FestivalDetailView: View {
                         Text("\(index + 1)")
                             .font(.caption.weight(.black))
                             .monospacedDigit()
-                            .foregroundStyle(WristlistTheme.coral)
+                            .foregroundStyle(WristlistTheme.scoreGreen)
                             .frame(width: 24)
                         Text(artist)
                             .font(.subheadline.weight(.semibold))
@@ -234,7 +233,7 @@ struct FestivalDetailView: View {
             } else {
                 LazyVStack(spacing: 14) {
                     ForEach(festivalReviews) { review in
-                        ReviewCardView(review: review, festival: festival, profile: profile, comments: comments)
+                        ReviewCardView(review: review, festival: festival, profile: profile)
                     }
                 }
             }

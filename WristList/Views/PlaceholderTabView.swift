@@ -25,11 +25,10 @@ struct PlaceholderTabView: View {
                         .foregroundStyle(.white)
                         .frame(width: 82, height: 82)
                         .background(WristlistTheme.gradient(for: palette), in: Circle())
-                        .shadow(color: WristlistTheme.colors(for: palette).first?.opacity(0.30) ?? .clear, radius: 24, y: 12)
 
                     VStack(spacing: 8) {
                         Text(title)
-                            .font(.system(size: 32, weight: .black, design: .rounded))
+                            .font(.title2.weight(.bold))
                             .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
 
                         Text(subtitle)

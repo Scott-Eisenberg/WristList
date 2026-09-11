@@ -45,12 +45,9 @@ struct EditProfileView: View {
                         .accessibilityLabel("Display name")
 
                     TextField("Username", text: $username)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
                         .accessibilityLabel("Username")
 
                     TextField("Home city", text: $homeCity)
-                        .textInputAutocapitalization(.words)
                         .accessibilityLabel("Home city")
                 }
 
@@ -153,3 +150,4 @@ struct EditProfileView: View {
         EditProfileView(profile: profile)
             .modelContainer(container)
     }
+}

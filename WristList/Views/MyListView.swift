@@ -66,12 +66,12 @@ struct MyListView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 7) {
             Text("Your festival shelf")
-                .font(.system(.largeTitle, design: .rounded).weight(.black))
+                .font(.title2.weight(.bold))
                 .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
                 .lineLimit(2)
 
             Text("Rank attended weekends, track saved festivals, and keep future plans organized.")
-                .font(.subheadline.weight(.semibold))
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
         }
     }
@@ -248,6 +248,7 @@ private struct MyListFestivalRow: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
+    @MainActor
     private var trailingText: String {
         switch section {
         case .ranked:

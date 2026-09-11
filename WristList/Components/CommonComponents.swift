@@ -10,15 +10,18 @@ struct HeaderIconButton: View {
     let accessibilityLabel: String
     let action: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
                 .frame(width: 44, height: 44)
-                .background(.ultraThinMaterial, in: Circle())
+                .background(WristlistTheme.cardFill(for: colorScheme), in: Circle())
                 .overlay {
                     Circle()
-                        .strokeBorder(Color.white.opacity(0.14), lineWidth: 1)
+                        .strokeBorder(WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
                 }
         }
         .buttonStyle(.plain)
@@ -72,15 +75,21 @@ struct WristbandTag: View {
     let text: String
     let palette: FestivalPalette
 
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
-        Text(text.uppercased())
-            .font(.caption2.weight(.bold))
+        Text(text)
+            .font(.caption2.weight(.semibold))
             .lineLimit(1)
             .minimumScaleFactor(0.8)
-            .foregroundStyle(.white)
+            .foregroundStyle(WristlistTheme.colors(for: palette).first ?? WristlistTheme.brand)
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
-            .background(WristlistTheme.gradient(for: palette), in: Capsule())
+            .background(WristlistTheme.tertiaryFill(for: colorScheme), in: Capsule())
+            .overlay {
+                Capsule()
+                    .strokeBorder(WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
+            }
             .accessibilityLabel(text)
     }
 }
@@ -93,15 +102,15 @@ struct ScoreBadge: View {
     var body: some View {
         VStack(spacing: 0) {
             Text(score, format: .number.precision(.fractionLength(1)))
-                .font(.system(size: 24, weight: .black, design: .rounded))
+                .font(.system(size: 21, weight: .black, design: .rounded))
                 .monospacedDigit()
             Text("/10")
                 .font(.caption2.weight(.bold))
                 .opacity(0.78)
         }
         .foregroundStyle(.white)
-        .frame(width: 64, height: 58)
-        .background(WristlistTheme.gradient(for: palette), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .frame(width: 56, height: 50)
+        .background(WristlistTheme.scoreGreen, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .accessibilityLabel("\(label) \(score, specifier: "%.1f") out of 10")
     }
 }
@@ -109,36 +118,40 @@ struct ScoreBadge: View {
 struct FestivalArtworkView: View {
     let festival: WLFestival
 
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
+        let accent = WristlistTheme.colors(for: festival.palette).first ?? WristlistTheme.brand
+
         ZStack {
-            WristlistTheme.gradient(for: festival.palette)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(accent.opacity(colorScheme == .dark ? 0.28 : 0.16))
 
-            VStack(spacing: 10) {
-                HStack(spacing: 6) {
-                    ForEach(0..<4, id: \.self) { index in
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill(Color.white.opacity(index.isMultiple(of: 2) ? 0.74 : 0.34))
-                            .frame(width: 22, height: 74)
-                            .rotationEffect(.degrees(Double(index - 2) * 7))
-                    }
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(accent.opacity(colorScheme == .dark ? 0.45 : 0.26), lineWidth: 1)
+
+            HStack(spacing: 5) {
+                ForEach(0..<5, id: \.self) { index in
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(index.isMultiple(of: 2) ? accent : accent.opacity(0.46))
+                        .frame(width: 9)
                 }
+            }
+            .padding(.vertical, 14)
 
-                Image(systemName: "waveform.path.ecg.rectangle")
-                    .font(.system(size: 30, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.88))
+            VStack {
+                Spacer()
+                HStack {
+                    Image(systemName: "ticket")
+                        .font(.caption.weight(.black))
+                    Spacer()
+                    Text(festival.startDate, format: .dateTime.month(.abbreviated))
+                        .font(.caption2.weight(.black))
+                        .textCase(.uppercase)
+                }
+                .foregroundStyle(accent)
+                .padding(8)
             }
-        }
-        .overlay(alignment: .bottomLeading) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(festival.name)
-                    .font(.headline.weight(.bold))
-                    .lineLimit(2)
-                Text(festival.cityState)
-                    .font(.caption.weight(.semibold))
-                    .opacity(0.84)
-            }
-            .foregroundStyle(.white)
-            .padding(12)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Festival artwork for \(festival.name) in \(festival.cityState)")
@@ -157,7 +170,7 @@ struct SectionTitleView: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.title3.weight(.black))
+                    .font(.headline.weight(.bold))
                     .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
 
                 if let subtitle {
@@ -172,7 +185,7 @@ struct SectionTitleView: View {
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
                     .font(.subheadline.weight(.bold))
-                    .foregroundStyle(WristlistTheme.coral)
+                    .foregroundStyle(WristlistTheme.brand)
                     .accessibilityLabel(actionTitle)
             }
         }
@@ -215,7 +228,7 @@ struct CategoryScoreView: View {
             .frame(height: 5)
         }
         .padding(10)
-        .background(Color.white.opacity(colorScheme == .dark ? 0.05 : 0.50), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(WristlistTheme.tertiaryFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(score.name) score \(score.score, specifier: "%.1f") out of 10")
     }
@@ -236,7 +249,7 @@ struct EmptyStateView: View {
                 .font(.system(size: 28, weight: .bold))
                 .foregroundStyle(.white)
                 .frame(width: 58, height: 58)
-                .background(WristlistTheme.gradient(for: .violet), in: Circle())
+                .background(WristlistTheme.brand, in: Circle())
 
             VStack(spacing: 6) {
                 Text(title)
@@ -254,7 +267,7 @@ struct EmptyStateView: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 16)
                     .frame(height: 44)
-                    .background(WristlistTheme.gradient(for: .sunset), in: Capsule())
+                    .background(WristlistTheme.brand, in: Capsule())
             }
         }
         .padding(22)
@@ -321,7 +334,7 @@ struct FestivalCompactRow: View {
                 Text(trailingText)
                     .font(.subheadline.weight(.black))
                     .monospacedDigit()
-                    .foregroundStyle(WristlistTheme.coral)
+                    .foregroundStyle(WristlistTheme.scoreGreen)
             }
         }
         .accessibilityElement(children: .ignore)
