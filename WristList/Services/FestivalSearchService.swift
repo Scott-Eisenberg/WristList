@@ -95,6 +95,37 @@ struct FestivalFilters: Equatable {
     }
 }
 
+enum FestivalSearchMatchKind: String, Equatable {
+    case festival
+    case artist
+    case location
+    case venue
+    case genre
+    case description
+    case filtered
+
+    var title: String {
+        switch self {
+        case .festival: "Festival"
+        case .artist: "Artist"
+        case .location: "Place"
+        case .venue: "Venue"
+        case .genre: "Genre"
+        case .description: "About"
+        case .filtered: "Match"
+        }
+    }
+}
+
+struct FestivalSearchResult: Identifiable {
+    var id: String { festival.id }
+
+    let festival: WLFestival
+    let matchKind: FestivalSearchMatchKind
+    let matchDetail: String
+    let score: Int
+}
+
 enum FestivalSearchService {
     nonisolated static func normalizedSearchText(_ value: String) -> String {
         let foldedValue = value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
@@ -109,18 +140,37 @@ enum FestivalSearchService {
     }
 
     static func results(from festivals: [WLFestival], filters: FestivalFilters, now: Date = .now) -> [WLFestival] {
-        festivals.filter { festival in
+        rankedResults(from: festivals, filters: filters, now: now).map(\.festival)
+    }
+
+    static func rankedResults(from festivals: [WLFestival], filters: FestivalFilters, now: Date = .now) -> [FestivalSearchResult] {
+        let normalizedQuery = normalizedSearchText(filters.searchText)
+
+        return festivals.filter { festival in
             matchesSearch(festival, query: filters.searchText) &&
             matchesDate(festival, dateFilter: filters.dateFilter, now: now) &&
             matchesStatus(festival, statusFilter: filters.statusFilter) &&
             matchesGenre(festival, genre: filters.genre) &&
             matchesCity(festival, city: filters.city)
         }
+        .map { festival in
+            searchResult(for: festival, normalizedQuery: normalizedQuery, now: now)
+        }
         .sorted { first, second in
-            if first.startDate == second.startDate {
-                return first.name.localizedStandardCompare(second.name) == .orderedAscending
+            guard !normalizedQuery.isEmpty else {
+                if first.festival.startDate == second.festival.startDate {
+                    return first.festival.name.localizedStandardCompare(second.festival.name) == .orderedAscending
+                }
+                return first.festival.startDate < second.festival.startDate
             }
-            return first.startDate < second.startDate
+
+            if first.score != second.score {
+                return first.score > second.score
+            }
+            if first.festival.startDate == second.festival.startDate {
+                return first.festival.name.localizedStandardCompare(second.festival.name) == .orderedAscending
+            }
+            return first.festival.startDate < second.festival.startDate
         }
     }
 
@@ -168,6 +218,65 @@ enum FestivalSearchService {
 
         let queryTokens = normalizedQuery.split(separator: " ").map(String.init)
         return queryTokens.allSatisfy { searchableText.contains($0) }
+    }
+
+    private static func searchResult(for festival: WLFestival, normalizedQuery: String, now: Date) -> FestivalSearchResult {
+        guard !normalizedQuery.isEmpty else {
+            return FestivalSearchResult(
+                festival: festival,
+                matchKind: .filtered,
+                matchDetail: festival.dateRangeText,
+                score: 0
+            )
+        }
+
+        let candidates: [(kind: FestivalSearchMatchKind, detail: String, value: String, weight: Int)] = [
+            (.festival, festival.festivalSeriesName, festival.festivalSeriesName, 1_000),
+            (.festival, festival.name, festival.name, 950)
+        ] + festival.lineup.map { (.artist, $0, $0, 700) } + [
+            (.location, festival.cityState, "\(festival.city) \(festival.state) \(festival.country)", 560),
+            (.venue, festival.venue, festival.venue, 500)
+        ] + festival.genres.map { (.genre, $0, $0, 440) } + [
+            (.description, festival.summary, "\(festival.summary) \(festival.detailDescription)", 160)
+        ]
+
+        let bestCandidate = candidates
+            .compactMap { candidate -> (FestivalSearchMatchKind, String, Int)? in
+                let normalizedValue = normalizedSearchText(candidate.value)
+                guard fieldMatches(normalizedValue, query: normalizedQuery) else { return nil }
+
+                let qualityBonus: Int
+                if normalizedValue == normalizedQuery {
+                    qualityBonus = 120
+                } else if normalizedValue.hasPrefix(normalizedQuery) {
+                    qualityBonus = 70
+                } else if normalizedValue.contains(normalizedQuery) {
+                    qualityBonus = 35
+                } else {
+                    qualityBonus = 0
+                }
+                return (candidate.kind, candidate.detail, candidate.weight + qualityBonus)
+            }
+            .max { $0.2 < $1.2 }
+
+        let socialBonus = min(festival.friendNames.count * 6, 30)
+        let upcomingBonus = festival.endDate >= Calendar.current.startOfDay(for: now) ? 20 : 0
+        let ratingBonus = Int(festival.communityRating.rounded())
+
+        return FestivalSearchResult(
+            festival: festival,
+            matchKind: bestCandidate?.0 ?? .filtered,
+            matchDetail: bestCandidate?.1 ?? "Multiple fields",
+            score: (bestCandidate?.2 ?? 0) + socialBonus + upcomingBonus + ratingBonus
+        )
+    }
+
+    private static func fieldMatches(_ normalizedValue: String, query: String) -> Bool {
+        if normalizedValue.contains(query) {
+            return true
+        }
+        let queryTokens = query.split(separator: " ").map(String.init)
+        return queryTokens.allSatisfy { normalizedValue.contains($0) }
     }
 
     private static func matchesDate(_ festival: WLFestival, dateFilter: FestivalDateFilter, now: Date) -> Bool {
@@ -222,6 +331,16 @@ struct ExternalFestivalSearchResult: Identifiable, Hashable {
             return sourceName
         }
         return description
+    }
+}
+
+protocol FestivalRemoteSearching: Sendable {
+    func search(query: String, limit: Int) async throws -> [ExternalFestivalSearchResult]
+}
+
+struct WikipediaFestivalSearchProvider: FestivalRemoteSearching {
+    func search(query: String, limit: Int = 5) async throws -> [ExternalFestivalSearchResult] {
+        try await FestivalExternalSearchService.search(query: query, limit: limit)
     }
 }
 

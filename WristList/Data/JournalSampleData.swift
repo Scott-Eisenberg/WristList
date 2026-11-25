@@ -29,7 +29,7 @@ enum JournalSampleData {
     private static func make(_ id: String, _ name: String, _ city: String, _ state: String, _ venue: String,
                              _ year: Int, _ month: Int, _ start: Int, _ end: Int, _ genres: [String],
                              _ lineup: [String], _ summary: String, _ score: Double, _ rank: Int) -> WLFestival {
-        WLFestival(id: id, name: name, city: city, state: state, venue: venue,
+        let festival = WLFestival(id: id, name: name, city: city, state: state, venue: venue,
                    startDate: DateFormatting.date(year: year, month: month, day: start),
                    endDate: DateFormatting.date(year: year, month: month, day: end),
                    genres: genres, lineup: lineup, summary: summary, detailDescription: summary,
@@ -41,6 +41,8 @@ enum JournalSampleData {
                    isSaved: rank > 0 || id == "bonnaroo", status: rank > 0 ? .attended : id == "bonnaroo" ? .wantToGo : .none,
                    personalRank: rank,
                    attendedDate: rank > 0 ? DateFormatting.date(year: year, month: month, day: start) : nil)
+        if id == "lollapalooza" { festival.endDate = DateFormatting.date(year: 2026, month: 8, day: 2) }
+        return festival
     }
 
     static func reviews() -> [WLReview] {

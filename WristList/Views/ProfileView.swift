@@ -30,7 +30,7 @@ struct ProfileView: View {
             profiles: profiles,
             reviews: reviews,
             festivals: festivals,
-            friendMatches: SampleProfileData.friendMatches(),
+            friendMatches: [],
             query: userSearchText
         )
     }
@@ -68,7 +68,7 @@ struct ProfileView: View {
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 28) {
                     if isSearchingUsers {
                         UserSearchResultsSection(results: userSearchResults)
                     } else {
@@ -78,10 +78,6 @@ struct ProfileView: View {
                             EmptyStateView(title: "Profile loading", message: "Your local profile is being prepared.", systemImage: "person.crop.circle")
                         }
 
-                        ProfileStatsGrid(metrics: metrics)
-
-                        TasteProfileSection(signals: SampleProfileData.tasteSignals(festivals: festivals, reviews: reviews))
-
                         FestivalListSection(
                             selectedList: $selectedList,
                             rankedFestivals: rankedFestivals,
@@ -89,18 +85,19 @@ struct ProfileView: View {
                             wantToAttendFestivals: wantToAttendFestivals
                         )
 
+                        TasteProfileSection(signals: SampleProfileData.tasteSignals(festivals: festivals, reviews: reviews))
+
                         RecentReviewsSection(reviews: currentUserReviews, festivals: festivals, profile: profile)
+
+                        ProfileStatsGrid(metrics: metrics)
 
                         CityCoverageSection(cityStats: SampleProfileData.cityStats(from: festivals))
 
-                        WristbandMemoriesSection(memories: SampleProfileData.wristbandMemories(from: festivals))
-
-                        FriendMatchesSection(matches: SampleProfileData.friendMatches())
                     }
                 }
-                .padding(.horizontal, 18)
+                .padding(.horizontal, 20)
                 .padding(.top, 16)
-                .padding(.bottom, 28)
+                .padding(.bottom, 34)
             }
             .background(WristlistTheme.appBackground(for: colorScheme).ignoresSafeArea())
             .navigationTitle("Profile")
@@ -134,7 +131,7 @@ private struct UserSearchResultsSection: View {
                     systemImage: "person.crop.circle.badge.questionmark"
                 )
             } else {
-                LazyVStack(spacing: 10) {
+                LazyVStack(spacing: 0) {
                     ForEach(results) { result in
                         NavigationLink {
                             UserProfileDetailView(searchResult: result)
@@ -184,11 +181,9 @@ private struct UserSearchResultRow: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
         }
-        .padding(12)
-        .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
+        .padding(.vertical, 12)
+        .overlay(alignment: .bottom) {
+            EditorialDivider()
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(result.displayName), \(result.subtitle), \(result.detailText)")
@@ -217,16 +212,11 @@ private enum ProfileFestivalListFilter: String, CaseIterable, Identifiable {
 private struct TasteProfileSection: View {
     let signals: [TasteSignal]
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 10),
-        GridItem(.flexible(), spacing: 10)
-    ]
-
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionTitleView(title: "Taste Profile", subtitle: "What your ranking history says about your festival style")
 
-            LazyVGrid(columns: columns, spacing: 10) {
+            VStack(spacing: 0) {
                 ForEach(signals) { signal in
                     TasteSignalCard(signal: signal)
                 }
@@ -247,15 +237,29 @@ private struct FestivalListSection: View {
         VStack(alignment: .leading, spacing: 12) {
             SectionTitleView(title: "Festival Lists", subtitle: selectedList.subtitle)
 
-            Picker("Festival list", selection: $selectedList) {
+            HStack(spacing: 18) {
                 ForEach(ProfileFestivalListFilter.allCases) { filter in
-                    Text(filter.rawValue).tag(filter)
+                    Button {
+                        selectedList = filter
+                    } label: {
+                        VStack(alignment: .leading, spacing: 7) {
+                            Text(filter.rawValue.uppercased())
+                                .font(WristlistTheme.kickerFont)
+                                .tracking(1.0)
+
+                            Rectangle()
+                                .fill(selectedList == filter ? WristlistTheme.brand : WristlistTheme.divider(for: colorScheme))
+                                .frame(width: selectedList == filter ? 42 : 24, height: 3)
+                        }
+                        .foregroundStyle(selectedList == filter ? WristlistTheme.primaryText(for: colorScheme) : WristlistTheme.secondaryText(for: colorScheme))
+                        .frame(minHeight: 44, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
-            .pickerStyle(.segmented)
             .accessibilityLabel("Choose festival list")
 
-            VStack(spacing: 10) {
+            VStack(spacing: 0) {
                 switch selectedList {
                 case .ranked:
                     if rankedFestivals.isEmpty {
@@ -290,8 +294,10 @@ private struct FestivalListSection: View {
                     FestivalDetailView(festival: festival)
                 } label: {
                     FestivalCompactRow(festival: festival, trailingText: festival.status.title)
-                        .padding(12)
-                        .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .padding(.vertical, 12)
+                        .overlay(alignment: .bottom) {
+                            EditorialDivider()
+                        }
                 }
                 .buttonStyle(.plain)
             }

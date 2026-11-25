@@ -142,59 +142,93 @@ struct ScoreBadge: View {
 struct FestivalArtworkView: View {
     let festival: WLFestival
 
-    @Environment(\.colorScheme) private var colorScheme
-
     var body: some View {
         GeometryReader { proxy in
-            let accent = WristlistTheme.accent(for: festival.palette)
-            let secondary = WristlistTheme.secondaryAccent(for: festival.palette)
             let foreground = WristlistTheme.contrastText(for: festival.palette)
-            let cityCode = String(festival.city.prefix(3)).uppercased()
 
             ZStack(alignment: .bottomLeading) {
-                accent
+                if let photo = FestivalPhoto.catalog[festival.id] {
+                    Image(photo.asset)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                        .clipped()
 
-                Rectangle()
-                    .fill(secondary)
-                    .frame(width: proxy.size.width * 1.34, height: proxy.size.height * 0.34)
-                    .rotationEffect(.degrees(-13))
-                    .offset(x: -proxy.size.width * 0.16, y: -proxy.size.height * 0.24)
-
-                HStack(spacing: proxy.size.width * 0.035) {
-                    ForEach(0..<6, id: \.self) { index in
-                        Rectangle()
-                            .fill(foreground.opacity(index.isMultiple(of: 2) ? 0.20 : 0.09))
-                    }
+                    LinearGradient(
+                        colors: [.clear, .black.opacity(0.08), .black.opacity(0.84)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                } else {
+                    FestivalGraphicBackground(
+                        city: festival.city,
+                        palette: festival.palette,
+                        size: proxy.size
+                    )
                 }
-                .frame(width: proxy.size.width * 0.36)
-                .padding(.vertical, proxy.size.height * 0.11)
-                .frame(maxWidth: .infinity, alignment: .trailing)
 
-                Text(cityCode)
-                    .font(.system(size: max(24, proxy.size.width * 0.40), weight: .black, design: .serif))
-                    .foregroundStyle(foreground.opacity(0.18))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.4)
-                    .offset(x: proxy.size.width * 0.30, y: proxy.size.height * 0.04)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(festival.startDate, format: .dateTime.month(.abbreviated).year())
-                        .font(.system(size: max(9, proxy.size.width * 0.075), weight: .black))
-                        .foregroundStyle(foreground.opacity(0.78))
-                        .textCase(.uppercase)
-
-                    Text(festival.name.uppercased())
-                        .font(.system(size: max(12, proxy.size.width * 0.118), weight: .black, design: .serif))
-                        .foregroundStyle(foreground)
-                        .lineLimit(3)
-                        .minimumScaleFactor(0.48)
-                }
-                .padding(max(8, proxy.size.width * 0.08))
+                FestivalArtworkLabel(
+                    festival: festival,
+                    foreground: FestivalPhoto.catalog[festival.id] == nil ? foreground : .white,
+                    width: proxy.size.width
+                )
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: WristlistTheme.cornerSmall, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Festival artwork for \(festival.name) in \(festival.cityState)")
+    }
+}
+
+private struct FestivalGraphicBackground: View {
+    let city: String
+    let palette: FestivalPalette
+    let size: CGSize
+
+    var body: some View {
+        let accent = WristlistTheme.accent(for: palette)
+        let secondary = WristlistTheme.secondaryAccent(for: palette)
+        let foreground = WristlistTheme.contrastText(for: palette)
+
+        ZStack {
+            accent
+
+            Rectangle()
+                .fill(secondary)
+                .frame(width: size.width * 1.34, height: size.height * 0.34)
+                .rotationEffect(.degrees(-13))
+                .offset(x: -size.width * 0.16, y: -size.height * 0.24)
+
+            Text(String(city.prefix(3)).uppercased())
+                .font(.system(size: max(24, size.width * 0.40), weight: .black, design: .serif))
+                .foregroundStyle(foreground.opacity(0.18))
+                .lineLimit(1)
+                .minimumScaleFactor(0.4)
+                .offset(x: size.width * 0.16, y: size.height * 0.04)
+        }
+    }
+}
+
+private struct FestivalArtworkLabel: View {
+    let festival: WLFestival
+    let foreground: Color
+    let width: CGFloat
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(festival.startDate, format: .dateTime.month(.abbreviated).year())
+                .font(.system(size: max(9, width * 0.075), weight: .black))
+                .foregroundStyle(foreground.opacity(0.82))
+                .textCase(.uppercase)
+
+            Text(festival.name.uppercased())
+                .font(.system(size: max(12, width * 0.118), weight: .black, design: .serif))
+                .foregroundStyle(foreground)
+                .shadow(color: .black.opacity(FestivalPhoto.catalog[festival.id] == nil ? 0 : 0.35), radius: 2, y: 1)
+                .lineLimit(3)
+                .minimumScaleFactor(0.48)
+        }
+        .padding(max(8, width * 0.08))
     }
 }
 

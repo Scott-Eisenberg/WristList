@@ -21,12 +21,18 @@ struct DiscoverView: View {
     @State private var isShowingImportedFestival = false
     @State private var actionError: String?
 
+    private let remoteSearchProvider: any FestivalRemoteSearching
+
+    init(remoteSearchProvider: any FestivalRemoteSearching = WikipediaFestivalSearchProvider()) {
+        self.remoteSearchProvider = remoteSearchProvider
+    }
+
     private var normalizedSearchText: String {
         FestivalSearchService.normalizedSearchText(filters.searchText)
     }
 
-    private var searchResults: [WLFestival] {
-        FestivalSearchService.results(from: festivals, filters: filters)
+    private var searchResults: [FestivalSearchResult] {
+        FestivalSearchService.rankedResults(from: festivals, filters: filters)
     }
 
     private var shouldSearchRemoteFestivals: Bool {
@@ -88,7 +94,7 @@ struct DiscoverView: View {
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: 30) {
                     header
                     filterBar
 
@@ -101,24 +107,34 @@ struct DiscoverView: View {
                             systemImage: "music.mic"
                         )
                     } else {
-                        DiscoverySection(title: "Trending", subtitle: "Festivals getting the most local attention", festivals: trendingFestivals)
-                        DiscoverySection(title: "Near You", subtitle: "Los Angeles-friendly travel and local weekends", festivals: nearYouFestivals)
-                        DiscoverySection(title: "Coming Soon", subtitle: "Upcoming dates sorted by start date", festivals: comingSoonFestivals)
-                        DiscoverySection(title: "Recommended", subtitle: "Based on your saved genres and ranked history", festivals: recommendedFestivals)
+                        DiscoverySection(title: "Trending", subtitle: "The festivals your circle keeps bringing up", festivals: trendingFestivals)
+                        DiscoverySection(title: "Near You", subtitle: "Weekends close enough to make the group chat", festivals: nearYouFestivals)
+                        DiscoverySection(title: "Coming Soon", subtitle: "Next dates on the calendar", festivals: comingSoonFestivals)
+                        DiscoverySection(title: "Worth a Look", subtitle: "Strong ratings, lineups, and friend activity", festivals: recommendedFestivals)
                     }
                 }
-                .padding(.horizontal, 18)
+                .padding(.horizontal, 20)
                 .padding(.top, 16)
-                .padding(.bottom, 28)
+                .padding(.bottom, 34)
             }
             .background(WristlistTheme.appBackground(for: colorScheme).ignoresSafeArea())
-            .navigationTitle("Discover")
+            .navigationTitle("")
 #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $filters.searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Festival, artist, city, venue, genre")
 #else
             .searchable(text: $filters.searchText, prompt: "Festival, artist, city, venue, genre")
 #endif
+            .searchSuggestions {
+                ForEach(searchResults.prefix(5)) { result in
+                    Label {
+                        Text("\(result.festival.festivalSeriesName) · \(result.festival.editionYear)")
+                    } icon: {
+                        Image(systemName: result.matchKind == .artist ? "music.note" : "ticket")
+                    }
+                    .searchCompletion(result.festival.name)
+                }
+            }
             .task(id: normalizedSearchText) {
                 await refreshRemoteFestivalResults(for: filters.searchText)
             }
@@ -150,14 +166,16 @@ struct DiscoverView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text("Find your next wristband")
-                .font(.title2.weight(.bold))
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Discover")
+                .font(WristlistTheme.pageTitleFont)
                 .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
                 .lineLimit(2)
+                .minimumScaleFactor(0.76)
 
-            Text("Search across festivals, cities, venues, genres, and sample lineup artists.")
-                .font(.caption.weight(.semibold))
+            Text("Start with a city, a lineup name, or the kind of weekend you want.")
+                .font(.body)
+                .lineSpacing(3)
                 .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
         }
     }
@@ -165,7 +183,7 @@ struct DiscoverView: View {
     private var filterBar: some View {
         VStack(alignment: .leading, spacing: 10) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+                HStack(spacing: 18) {
                     Menu {
                         Picker("Date", selection: $filters.dateFilter) {
                             ForEach(FestivalDateFilter.allCases) { option in
@@ -210,21 +228,21 @@ struct DiscoverView: View {
                         Button("Clear") {
                             filters.clear()
                         }
-                        .font(.subheadline.weight(.bold))
+                        .font(WristlistTheme.kickerFont)
+                        .tracking(0.8)
                         .foregroundStyle(WristlistTheme.coral)
                         .frame(minHeight: 44)
-                        .padding(.horizontal, 10)
                         .accessibilityLabel("Clear filters")
                     }
                 }
-                .padding(.horizontal, 18)
+                .padding(.horizontal, 20)
             }
-            .padding(.horizontal, -18)
+            .padding(.horizontal, -20)
         }
     }
 
     private var resultsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             SectionTitleView(title: "Results", subtitle: resultsSubtitle)
 
             if searchResults.isEmpty && visibleRemoteFestivalResults.isEmpty && !isRemoteSearchInProgress && remoteSearchError == nil {
@@ -237,14 +255,29 @@ struct DiscoverView: View {
                 )
             } else {
                 if !searchResults.isEmpty {
-                    LazyVStack(spacing: 10) {
-                        ForEach(searchResults) { festival in
-                            NavigationLink {
-                                FestivalDetailView(festival: festival)
-                            } label: {
-                                DiscoveryFestivalRow(festival: festival)
+                    LazyVStack(spacing: 0) {
+                        ForEach(searchResults) { result in
+                            HStack(spacing: 8) {
+                                NavigationLink {
+                                    FestivalDetailView(festival: result.festival)
+                                } label: {
+                                    FestivalSearchResultRow(result: result, showsMatchReason: !normalizedSearchText.isEmpty)
+                                }
+                                .buttonStyle(.plain)
+
+                                Button {
+                                    toggleSaved(result.festival)
+                                } label: {
+                                    Image(systemName: result.festival.isSaved ? "bookmark.fill" : "bookmark")
+                                        .font(.body.weight(.bold))
+                                        .foregroundStyle(result.festival.isSaved ? WristlistTheme.coral : WristlistTheme.secondaryText(for: colorScheme))
+                                        .frame(width: 44, height: 44)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(result.festival.isSaved ? "Remove \(result.festival.name) from saved festivals" : "Save \(result.festival.name)")
                             }
-                            .buttonStyle(.plain)
+
+                            EditorialDivider()
                         }
                     }
                 }
@@ -316,6 +349,15 @@ struct DiscoverView: View {
     }
 
     @MainActor
+    private func toggleSaved(_ festival: WLFestival) {
+        do {
+            try WristlistDataController.toggleSave(festival, context: modelContext)
+        } catch {
+            actionError = error.localizedDescription
+        }
+    }
+
+    @MainActor
     private func refreshRemoteFestivalResults(for query: String, debounce: Bool = true) async {
         let normalizedQuery = FestivalSearchService.normalizedSearchText(query)
         guard normalizedQuery.count >= FestivalExternalSearchService.minimumQueryLength else {
@@ -337,19 +379,24 @@ struct DiscoverView: View {
             }
             try Task.checkCancellation()
 
-            let results = try await FestivalExternalSearchService.search(query: searchQuery)
+            let results = try await remoteSearchProvider.search(query: searchQuery, limit: 5)
             try Task.checkCancellation()
 
             remoteFestivalResults = results
             remoteSearchError = nil
         } catch is CancellationError {
+            if FestivalSearchService.normalizedSearchText(remoteSearchQuery) == normalizedQuery {
+                isRemoteSearchLoading = false
+            }
             return
         } catch {
             remoteFestivalResults = []
             remoteSearchError = error.localizedDescription
         }
 
-        isRemoteSearchLoading = false
+        if FestivalSearchService.normalizedSearchText(remoteSearchQuery) == normalizedQuery {
+            isRemoteSearchLoading = false
+        }
     }
 }
 
@@ -359,14 +406,14 @@ private struct DiscoverySection: View {
     let festivals: [WLFestival]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             SectionTitleView(title: title, subtitle: subtitle)
 
             if festivals.isEmpty {
                 EmptyStateView(title: "Nothing here yet", message: "This section updates from local festival data.", systemImage: "tray")
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 14) {
+                    HStack(alignment: .top, spacing: 18) {
                         ForEach(festivals.prefix(6)) { festival in
                             NavigationLink {
                                 FestivalDetailView(festival: festival)
@@ -376,10 +423,10 @@ private struct DiscoverySection: View {
                             .buttonStyle(.plain)
                         }
                     }
-                    .padding(.horizontal, 18)
+                    .padding(.horizontal, 20)
                     .padding(.vertical, 2)
                 }
-                .padding(.horizontal, -18)
+                .padding(.horizontal, -20)
             }
         }
     }
@@ -391,67 +438,76 @@ private struct DiscoveryFestivalCard: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 11) {
             FestivalArtworkView(festival: festival)
-                .frame(width: 204, height: 138)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .frame(width: 214, height: 276)
 
-            VStack(alignment: .leading, spacing: 5) {
-                HStack {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline) {
                     Text(festival.name)
-                        .font(.headline.weight(.black))
+                        .font(.system(size: 22, weight: .black, design: .serif))
                         .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.70)
                     Spacer(minLength: 6)
                     Text(festival.communityRating, format: .number.precision(.fractionLength(1)))
-                        .font(.subheadline.weight(.black))
+                        .font(.title3.weight(.black))
                         .monospacedDigit()
-                        .foregroundStyle(WristlistTheme.scoreGreen)
+                        .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
                 }
 
-                Text("\(festival.cityState) · \(festival.dateRangeText)")
-                    .font(.caption.weight(.bold))
+                Text("\(festival.cityState) / \(festival.dateRangeText)")
+                    .font(WristlistTheme.metadataFont)
                     .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
-                    .lineLimit(1)
+                    .lineLimit(2)
 
                 Text(festival.summary)
-                    .font(.caption)
+                    .font(.caption.weight(.semibold))
+                    .lineSpacing(2)
                     .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
                     .lineLimit(2)
             }
         }
-        .padding(10)
-        .frame(width: 224)
-        .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
-        }
+        .frame(width: 214, alignment: .topLeading)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(festival.name), \(festival.cityState), \(festival.dateRangeText), rating \(festival.communityRating, specifier: "%.1f")")
     }
 }
 
-private struct DiscoveryFestivalRow: View {
-    let festival: WLFestival
+private struct FestivalSearchResultRow: View {
+    let result: FestivalSearchResult
+    let showsMatchReason: Bool
 
     @Environment(\.colorScheme) private var colorScheme
 
-    var body: some View {
-        HStack(spacing: 12) {
-            FestivalCompactRow(festival: festival, trailingText: festival.communityRating.formatted(.number.precision(.fractionLength(1))))
+    private var festival: WLFestival { result.festival }
 
-            if festival.status != .none {
-                FestivalStatusBadge(status: festival.status, palette: festival.palette)
-                    .frame(maxWidth: 104)
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .center, spacing: 12) {
+                FestivalCompactRow(
+                    festival: festival,
+                    trailingText: festival.communityRating > 0 ? festival.communityRating.formatted(.number.precision(.fractionLength(1))) : nil
+                )
+
+                if festival.status != .none && festival.status != .saved {
+                    FestivalStatusBadge(status: festival.status, palette: festival.palette)
+                        .frame(maxWidth: 96)
+                }
+            }
+
+            if showsMatchReason {
+                Text("\(result.matchKind.title) · \(result.matchDetail)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(result.matchKind == .artist ? WristlistTheme.coral : WristlistTheme.secondaryText(for: colorScheme))
+                    .lineLimit(1)
+                    .padding(.leading, 64)
             }
         }
-        .padding(12)
-        .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
-        }
+        .padding(.vertical, 12)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(festival.festivalSeriesName), \(festival.editionYear) edition, \(festival.cityState), matched by \(result.matchKind.title.lowercased())")
     }
 }
 
@@ -463,12 +519,13 @@ private struct ExternalFestivalResultRow: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 13) {
             thumbnail
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(result.title)
-                    .font(.headline.weight(.black))
+                    .font(.system(size: 20, weight: .black, design: .serif))
                     .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
                     .lineLimit(2)
                     .minimumScaleFactor(0.84)
@@ -497,7 +554,7 @@ private struct ExternalFestivalResultRow: View {
                         .font(.caption.weight(.black))
                         .foregroundStyle(WristlistTheme.coral)
                         .frame(width: 34, height: 34)
-                        .background(WristlistTheme.tertiaryFill(for: colorScheme), in: Circle())
+                        .background(WristlistTheme.fieldFill(for: colorScheme), in: Circle())
                 }
                 .buttonStyle(.plain)
                 .help("Open source")
@@ -515,16 +572,15 @@ private struct ExternalFestivalResultRow: View {
                 .font(.caption.weight(.black))
                 .foregroundStyle(.white)
                 .frame(minWidth: 76, minHeight: 34)
-                .background(WristlistTheme.coral.opacity(isImporting ? 0.68 : 1), in: Capsule())
+                .background(WristlistTheme.coral.opacity(isImporting ? 0.68 : 1))
+                .clipShape(RoundedRectangle(cornerRadius: WristlistTheme.cornerSmall, style: .continuous))
                 .disabled(isImporting)
                 .accessibilityLabel("Add \(result.title) to WristList")
             }
         }
-        .padding(12)
-        .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
+            .padding(.vertical, 14)
+
+            EditorialDivider()
         }
     }
 
@@ -545,9 +601,9 @@ private struct ExternalFestivalResultRow: View {
                 placeholderThumbnail
             }
         }
-        .frame(width: 64, height: 64)
-        .background(WristlistTheme.tertiaryFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .frame(width: 70, height: 84)
+        .background(WristlistTheme.fieldFill(for: colorScheme))
+        .clipShape(RoundedRectangle(cornerRadius: WristlistTheme.cornerSmall, style: .continuous))
     }
 
     private var placeholderThumbnail: some View {
@@ -573,7 +629,7 @@ private struct RemoteSearchStatusRow: View {
                 .font(.headline.weight(.black))
                 .foregroundStyle(WristlistTheme.coral)
                 .frame(width: 42, height: 42)
-                .background(WristlistTheme.tertiaryFill(for: colorScheme), in: Circle())
+                .background(WristlistTheme.fieldFill(for: colorScheme), in: Circle())
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
@@ -594,11 +650,9 @@ private struct RemoteSearchStatusRow: View {
                     .foregroundStyle(WristlistTheme.coral)
             }
         }
-        .padding(12)
-        .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
+        .padding(.vertical, 12)
+        .overlay(alignment: .bottom) {
+            EditorialDivider()
         }
         .accessibilityElement(children: .combine)
     }
@@ -612,15 +666,16 @@ private struct FilterChip: View {
 
     var body: some View {
         Label(title, systemImage: systemImage)
-            .font(.subheadline.weight(.bold))
+            .font(WristlistTheme.kickerFont)
+            .tracking(0.6)
             .lineLimit(1)
             .minimumScaleFactor(0.78)
             .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
-            .padding(.horizontal, 12)
             .frame(minHeight: 44)
-            .background(WristlistTheme.cardFill(for: colorScheme), in: Capsule())
-            .overlay {
-                Capsule().strokeBorder(WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(WristlistTheme.divider(for: colorScheme))
+                    .frame(height: 1)
             }
     }
 }

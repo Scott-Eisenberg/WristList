@@ -195,6 +195,21 @@ final class WLFestival {
         "\(city), \(state)"
     }
 
+    var editionYear: Int {
+        Calendar.current.component(.year, from: startDate)
+    }
+
+    var festivalSeriesName: String {
+        let parts = name.split(separator: " ")
+        guard let lastPart = parts.last,
+              lastPart.count == 4,
+              Int(lastPart) != nil,
+              parts.count > 1 else {
+            return name
+        }
+        return parts.dropLast().joined(separator: " ")
+    }
+
     var dateRangeText: String {
         DateFormatting.festivalRange(startDate: startDate, endDate: endDate)
     }
@@ -204,7 +219,7 @@ final class WLFestival {
             ReviewCategoryScore(id: "\(id)-lineup", name: "Lineup", score: lineupScore),
             ReviewCategoryScore(id: "\(id)-production", name: "Production", score: productionScore),
             ReviewCategoryScore(id: "\(id)-venue", name: "Venue", score: venueScore),
-            ReviewCategoryScore(id: "\(id)-organization", name: "Organization", score: organizationScore),
+            ReviewCategoryScore(id: "\(id)-organization", name: "Logistics", score: organizationScore),
             ReviewCategoryScore(id: "\(id)-value", name: "Value", score: valueScore)
         ]
     }
@@ -234,6 +249,10 @@ final class WLReview {
     var organizationScore: Double
     var valueScore: Double
     var reviewText: String
+    var journalLineupScore: Double?
+    var journalOrganizationScore: Double?
+    var journalVenueScore: Double?
+    var journalVibeScore: Double?
     var favoritePerformancesRaw: String
     var isVisibleToFriends: Bool
     var likeCount: Int
@@ -313,7 +332,7 @@ final class WLReview {
             ReviewCategoryScore(id: "\(id)-lineup", name: "Lineup", score: lineupScore),
             ReviewCategoryScore(id: "\(id)-production", name: "Production", score: productionScore),
             ReviewCategoryScore(id: "\(id)-venue", name: "Venue", score: venueScore),
-            ReviewCategoryScore(id: "\(id)-organization", name: "Organization", score: organizationScore),
+            ReviewCategoryScore(id: "\(id)-organization", name: "Logistics", score: organizationScore),
             ReviewCategoryScore(id: "\(id)-value", name: "Value", score: valueScore)
         ]
     }

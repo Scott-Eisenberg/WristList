@@ -56,6 +56,33 @@ struct WristListTests {
         #expect(venueMatches.contains("Canyon Echo"))
     }
 
+    @Test func searchRanksExactFestivalNamesAndExplainsArtistMatches() throws {
+        let context = try seededContext()
+        let festivals = try context.fetch(FetchDescriptor<WLFestival>())
+
+        var filters = FestivalFilters()
+        filters.searchText = "Midnight Atlas"
+        let festivalResults = FestivalSearchService.rankedResults(from: festivals, filters: filters)
+        #expect(festivalResults.first?.festival.name == "Midnight Atlas")
+        #expect(festivalResults.first?.matchKind == .festival)
+
+        filters.searchText = "Helio Drift"
+        let artistResults = FestivalSearchService.rankedResults(from: festivals, filters: filters)
+        let midnightAtlas = try #require(artistResults.first { $0.festival.name == "Midnight Atlas" })
+        #expect(midnightAtlas.matchKind == .artist)
+        #expect(midnightAtlas.matchDetail == "Helio Drift")
+    }
+
+    @Test func festivalEditionIdentitySeparatesSeriesNameFromYear() throws {
+        let context = try seededContext()
+        let festivals = try context.fetch(FetchDescriptor<WLFestival>())
+        let festival = try #require(festivals.first { $0.name == "Midnight Atlas" })
+        festival.name = "Midnight Atlas 2026"
+
+        #expect(festival.festivalSeriesName == "Midnight Atlas")
+        #expect(festival.editionYear == 2026)
+    }
+
     @Test func externalSearchParserReturnsFestivalPagesOnly() throws {
         let data = try #require("""
         {
@@ -383,9 +410,51 @@ struct WristListTests {
         #expect(festival.status == .none)
     }
 
-    private func seededContext() throws -> ModelContext {
+    @Test func journalCatalogPreservesExistingEntriesAndInstallsOnce() throws {
+        let context = try seededContext()
+        let original = try context.fetch(FetchDescriptor<WLFestival>())
+        let ranks = Dictionary(uniqueKeysWithValues: original.map { ($0.id, $0.personalRank) })
+        try JournalSampleData.install(in: context)
+        try JournalSampleData.install(in: context)
+        let all = try context.fetch(FetchDescriptor<WLFestival>())
+        #expect(all.count == original.count + JournalSampleData.festivals().count)
+        #expect(original.allSatisfy { ranks[$0.id] == $0.personalRank })
+    }
+
+    @Test func journalOptionalScoresPersistAndCanBeCleared() throws {
         let context = try emptyContext()
         try WristlistDataController.seedIfNeeded(in: context)
+        let festivals = try context.fetch(FetchDescriptor<WLFestival>())
+        let profiles = try context.fetch(FetchDescriptor<WLProfile>())
+        let festival = try #require(festivals.first)
+        let profile = try #require(profiles.first)
+        var draft = ReviewDraft.blank
+        draft.festivalID = festival.id
+        draft.journalVibeScore = 9.3
+        let savedReview = try WristlistDataController.saveReview(draft: draft, festival: festival,
+                                                                 profile: profile, existingReview: nil, context: context)
+        let review = try #require(savedReview)
+        let reloaded = ModelContext(context.container)
+        let persistedReviews = try reloaded.fetch(FetchDescriptor<WLReview>())
+        let persisted = try #require(persistedReviews.first { $0.id == review.id })
+        #expect(persisted.journalVibeScore == 9.3)
+        #expect(persisted.journalLineupScore == nil)
+        draft.journalVibeScore = nil
+        try WristlistDataController.saveReview(draft: draft, festival: festival,
+                                              profile: profile, existingReview: review, context: context)
+        #expect(review.journalVibeScore == nil)
+        draft.journalVibeScore = 11
+        #expect(RatingValidator.validationIssues(for: draft).contains(.invalidScore("Vibe")))
+    }
+
+    private func seededContext() throws -> ModelContext {
+        let context = try emptyContext()
+        // Keep search and service fixtures independent of the app's demo catalog.
+        for festival in SampleFeedData.festivals() { context.insert(festival) }
+        for review in SampleFeedData.reviews() { context.insert(review) }
+        for comment in SampleFeedData.comments() { context.insert(comment) }
+        context.insert(SampleProfileData.profile())
+        try context.save()
         return context
     }
 

@@ -34,6 +34,30 @@ final class WristListUITests: XCTestCase {
     }
 
     @MainActor
+    func testPrimaryNavigationAndLogFlow() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        for tab in ["Home", "Explore", "Log", "My Festivals", "Profile"] {
+            XCTAssertTrue(app.buttons[tab].waitForExistence(timeout: 10), "Missing \(tab) tab")
+        }
+
+        app.buttons["Explore"].tap()
+        XCTAssertTrue(app.staticTexts["Discover"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.searchFields.firstMatch.exists)
+
+        app.buttons["My Festivals"].tap()
+        XCTAssertTrue(app.staticTexts["Your festival shelf"].waitForExistence(timeout: 5))
+
+        app.buttons["Log"].tap()
+        XCTAssertTrue(app.navigationBars["Log Festival"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["Search festivals"].exists)
+        app.buttons["Cancel"].tap()
+
+        XCTAssertTrue(app.staticTexts["Your festival shelf"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {

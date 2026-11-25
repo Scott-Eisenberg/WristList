@@ -38,14 +38,16 @@ enum FestivalRecommendation {
 struct FestivalPhotoCredit: View {
     let photo: FestivalPhoto
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Archive photography").font(.subheadline.weight(.semibold))
-            Text("From a previous edition; cropped to fit.")
-                .font(.caption).foregroundStyle(JournalStyle.muted)
+        HStack(spacing: 8) {
+            Text("Archive photo from a previous edition")
+                .foregroundStyle(.secondary)
             if let source = URL(string: photo.source), let license = URL(string: photo.licenseURL) {
-                Link("Photo: \(photo.credit)", destination: source)
+                Link(photo.credit, destination: source)
+                Text("·").foregroundStyle(.tertiary)
                 Link(photo.license, destination: license)
             }
-        }.font(.caption)
+        }
+        .font(.caption2)
+        .lineLimit(2)
     }
 }

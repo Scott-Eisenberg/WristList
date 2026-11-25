@@ -18,6 +18,10 @@ struct ReviewDraft: Equatable {
     var reviewText: String
     var favoritePerformances: [String]
     var isVisibleToFriends: Bool
+    var journalLineupScore: Double? = nil
+    var journalOrganizationScore: Double? = nil
+    var journalVenueScore: Double? = nil
+    var journalVibeScore: Double? = nil
 
     static let blank = ReviewDraft(
         festivalID: nil,
@@ -78,7 +82,7 @@ enum RatingValidator {
             ("Lineup", draft.lineupScore),
             ("Production", draft.productionScore),
             ("Venue", draft.venueScore),
-            ("Organization", draft.organizationScore),
+            ("Logistics", draft.organizationScore),
             ("Value", draft.valueScore)
         ]
 
@@ -86,6 +90,12 @@ enum RatingValidator {
             issues.append(.invalidScore(score.0))
         }
 
+        let optionalScores = [("Lineup", draft.journalLineupScore),
+                              ("Logistics", draft.journalOrganizationScore),
+                              ("Venue", draft.journalVenueScore), ("Vibe", draft.journalVibeScore)]
+        for (label, score) in optionalScores {
+            if let score, !(0...10).contains(score) { issues.append(.invalidScore(label)) }
+        }
         return issues
     }
 

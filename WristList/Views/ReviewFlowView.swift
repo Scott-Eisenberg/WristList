@@ -29,6 +29,7 @@ struct ReviewFlowView: View {
     @State private var remoteSearchQuery = ""
     @State private var isRemoteSearchLoading = false
     @State private var importingRemoteResultID: ExternalFestivalSearchResult.ID?
+    @State private var isShowingDetailedScores = false
 
     init(
         festivals: [WLFestival],
@@ -127,10 +128,10 @@ struct ReviewFlowView: View {
                 progressHeader
 
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 24) {
                         stepContent
                     }
-                    .padding(18)
+                    .padding(20)
                 }
 
                 footer
@@ -196,37 +197,46 @@ struct ReviewFlowView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 ForEach(ReviewFlowStep.allCases) { flowStep in
-                    Capsule()
+                    Rectangle()
                         .fill(flowStep.index <= step.index ? WristlistTheme.coral : WristlistTheme.cardStroke(for: colorScheme))
                         .frame(height: 5)
                 }
             }
             Text(step.title)
-                .font(.headline.weight(.black))
+                .font(WristlistTheme.sectionTitleFont)
                 .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
         }
-        .padding(.horizontal, 18)
+        .padding(.horizontal, 20)
         .padding(.vertical, 14)
-        .background(.ultraThinMaterial)
+        .background(WristlistTheme.appBackground(for: colorScheme))
+        .overlay(alignment: .bottom) {
+            EditorialDivider()
+        }
     }
 
     private var festivalStep: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 18) {
             Text("Choose the festival this entry belongs to.")
-                .font(.subheadline.weight(.semibold))
+                .font(.body)
+                .lineSpacing(3)
                 .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
 
             TextField("Search festivals, artists, cities, venues, genres", text: $searchText)
-                .padding(12)
-                .frame(minHeight: 44)
-                .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .font(.body.weight(.semibold))
+                .textFieldStyle(.plain)
+                .padding(.vertical, 14)
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(WristlistTheme.divider(for: colorScheme))
+                        .frame(height: 2)
+                }
                 .accessibilityLabel("Search festivals")
 
             if filteredFestivals.isEmpty && visibleRemoteFestivalResults.isEmpty && !isRemoteSearchInProgress && remoteSearchError == nil {
-                EmptyStateView(title: "No festival found", message: "Try a different festival, city, genre, venue, or artist.", systemImage: "magnifyingglass")
+                EmptyStateView(title: "No festival found", message: "Try a different festival, city, genre, venue, artist, or wait for online matches to finish.", systemImage: "magnifyingglass")
             } else {
                 if !filteredFestivals.isEmpty {
-                    VStack(spacing: 10) {
+                    VStack(spacing: 0) {
                         ForEach(filteredFestivals) { festival in
                             Button {
                                 selectFestival(festival)
@@ -237,11 +247,11 @@ struct ReviewFlowView: View {
                                         .font(.title3.weight(.bold))
                                         .foregroundStyle(selectedFestival?.id == festival.id ? WristlistTheme.coral : WristlistTheme.secondaryText(for: colorScheme))
                                 }
-                                .padding(12)
-                                .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .strokeBorder(selectedFestival?.id == festival.id ? WristlistTheme.coral.opacity(0.75) : WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
+                                .padding(.vertical, 12)
+                                .overlay(alignment: .bottom) {
+                                    Rectangle()
+                                        .fill(selectedFestival?.id == festival.id ? WristlistTheme.coral.opacity(0.75) : WristlistTheme.divider(for: colorScheme))
+                                        .frame(height: selectedFestival?.id == festival.id ? 2 : 1)
                                 }
                             }
                             .buttonStyle(.plain)
@@ -280,7 +290,7 @@ struct ReviewFlowView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     SectionTitleView(title: "Online Matches", subtitle: "Add one to use it in this review")
 
-                    LazyVStack(spacing: 10) {
+                    LazyVStack(spacing: 0) {
                         ForEach(visibleRemoteFestivalResults) { result in
                             ReviewFlowExternalFestivalRow(
                                 result: result,
@@ -298,12 +308,13 @@ struct ReviewFlowView: View {
     }
 
     private var statusStep: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 18) {
             Text("Add it to your history or save it as a future weekend.")
-                .font(.subheadline.weight(.semibold))
+                .font(.body)
+                .lineSpacing(3)
                 .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
 
-            VStack(spacing: 10) {
+            VStack(spacing: 0) {
                 statusButton(.attended, detail: "Rank it, score it, and optionally write a review.")
                 statusButton(.wantToGo, detail: "Save it to your future festival list without publishing a review yet.")
             }
@@ -311,51 +322,88 @@ struct ReviewFlowView: View {
             if draft.status == .attended {
                 DatePicker("Date attended", selection: Binding(get: { draft.attendedDate ?? .now }, set: { draft.attendedDate = $0 }), displayedComponents: .date)
                     .datePickerStyle(.compact)
-                    .padding(12)
-                    .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .font(.headline.weight(.black))
+                    .padding(.vertical, 12)
+                    .overlay(alignment: .bottom) {
+                        EditorialDivider()
+                    }
                     .accessibilityLabel("Date attended")
             }
         }
     }
 
     private var scoresStep: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(draft.status == .attended ? "Score the festival from 0 to 10." : "Optional preview scores are saved only if you mark the festival attended.")
-                .font(.subheadline.weight(.semibold))
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Start with the number you would tell a friend. The breakdown is there when you want it.")
+                .font(.body)
+                .lineSpacing(3)
                 .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
 
-            VStack(spacing: 12) {
-                ScoreSlider(title: "Overall", score: $draft.overallScore, palette: selectedFestival?.palette ?? .sunset)
-                ScoreSlider(title: "Lineup", score: $draft.lineupScore, palette: selectedFestival?.palette ?? .sunset)
-                ScoreSlider(title: "Production", score: $draft.productionScore, palette: selectedFestival?.palette ?? .sunset)
-                ScoreSlider(title: "Venue", score: $draft.venueScore, palette: selectedFestival?.palette ?? .sunset)
-                ScoreSlider(title: "Organization", score: $draft.organizationScore, palette: selectedFestival?.palette ?? .sunset)
-                ScoreSlider(title: "Value", score: $draft.valueScore, palette: selectedFestival?.palette ?? .sunset)
+            ScoreSlider(
+                title: "Overall",
+                score: $draft.overallScore,
+                palette: selectedFestival?.palette ?? .sunset,
+                isPrimary: true
+            )
+
+            DisclosureGroup(isExpanded: $isShowingDetailedScores) {
+                VStack(spacing: 2) {
+                    ScoreSlider(title: "Lineup", score: $draft.lineupScore, palette: selectedFestival?.palette ?? .sunset)
+                    ScoreSlider(title: "Production", score: $draft.productionScore, palette: selectedFestival?.palette ?? .sunset)
+                    ScoreSlider(title: "Venue", score: $draft.venueScore, palette: selectedFestival?.palette ?? .sunset)
+                    ScoreSlider(title: "Logistics", score: $draft.organizationScore, palette: selectedFestival?.palette ?? .sunset)
+                    ScoreSlider(title: "Value", score: $draft.valueScore, palette: selectedFestival?.palette ?? .sunset)
+                }
+                .padding(.top, 8)
+            } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Category scores")
+                        .font(.headline.weight(.black))
+                    Text("Optional · lineup, production, venue, logistics, value")
+                        .font(.caption)
+                        .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
+                }
             }
+            .tint(WristlistTheme.accent(for: selectedFestival?.palette ?? .sunset))
+            .padding(.vertical, 10)
+            .overlay(alignment: .bottom) {
+                EditorialDivider()
+            }
+        }
+        .onChange(of: draft.overallScore) { _, score in
+            guard !isShowingDetailedScores else { return }
+            draft.lineupScore = score
+            draft.productionScore = score
+            draft.venueScore = score
+            draft.organizationScore = score
+            draft.valueScore = score
         }
     }
 
     private var reviewTextStep: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 18) {
             Text("Add the details friends actually care about: sound, crowds, logistics, and performances.")
-                .font(.subheadline.weight(.semibold))
+                .font(.body)
+                .lineSpacing(3)
                 .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
 
             TextEditor(text: $draft.reviewText)
                 .frame(minHeight: 136)
-                .padding(8)
+                .padding(12)
                 .scrollContentBackground(.hidden)
-                .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
+                .background(WristlistTheme.fieldFill(for: colorScheme))
+                .clipShape(RoundedRectangle(cornerRadius: WristlistTheme.cornerSmall, style: .continuous))
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(WristlistTheme.divider(for: colorScheme))
+                        .frame(height: 2)
                 }
                 .accessibilityLabel("Review text")
 
             if let selectedFestival, !selectedFestival.lineup.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Favorite performances")
-                        .font(.headline.weight(.black))
+                        .font(WristlistTheme.sectionTitleFont)
                         .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
 
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
@@ -367,9 +415,11 @@ struct ReviewFlowView: View {
             }
 
             Toggle("Visible to friends", isOn: $draft.isVisibleToFriends)
-                .font(.subheadline.weight(.bold))
-                .padding(12)
-                .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .font(.headline.weight(.black))
+                .padding(.vertical, 12)
+                .overlay(alignment: .bottom) {
+                    EditorialDivider()
+                }
                 .accessibilityLabel("Review visible to friends")
         }
     }
@@ -378,11 +428,9 @@ struct ReviewFlowView: View {
         VStack(alignment: .leading, spacing: 14) {
             if let selectedFestival {
                 FestivalCompactRow(festival: selectedFestival, trailingText: draft.status.title)
-                    .padding(12)
-                    .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .strokeBorder(WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
+                    .padding(.vertical, 12)
+                    .overlay(alignment: .bottom) {
+                        EditorialDivider()
                     }
             }
 
@@ -394,16 +442,13 @@ struct ReviewFlowView: View {
                 ScoreSummaryRow(title: "Organization", score: draft.organizationScore)
                 ScoreSummaryRow(title: "Value", score: draft.valueScore)
             }
-            .padding(12)
-            .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             if !draft.reviewText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(draft.reviewText)
                     .font(.body)
+                    .lineSpacing(3)
                     .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
-                    .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
 
             if !validationIssues.isEmpty {
@@ -428,11 +473,7 @@ struct ReviewFlowView: View {
                     step = step.previous
                 }
             }
-            .font(.subheadline.weight(.bold))
-            .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 48)
-            .background(WristlistTheme.cardFill(for: colorScheme), in: Capsule())
+            .buttonStyle(SecondaryActionButtonStyle())
             .accessibilityLabel(step == .festival ? "Cancel review" : "Go back")
 
             Button(step == .summary ? "Save" : "Next") {
@@ -442,16 +483,15 @@ struct ReviewFlowView: View {
                     step = step.next
                 }
             }
-            .font(.headline.weight(.bold))
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 48)
-            .background(nextButtonDisabled ? disabledGradient : WristlistTheme.gradient(for: selectedFestival?.palette ?? .sunset), in: Capsule())
+            .buttonStyle(PrimaryActionButtonStyle())
             .disabled(nextButtonDisabled)
             .accessibilityLabel(step == .summary ? "Save review" : "Continue")
         }
-        .padding(18)
-        .background(.ultraThinMaterial)
+        .padding(20)
+        .background(WristlistTheme.appBackground(for: colorScheme))
+        .overlay(alignment: .top) {
+            EditorialDivider()
+        }
     }
 
     private var nextButtonDisabled: Bool {
@@ -462,10 +502,6 @@ struct ReviewFlowView: View {
             return !validationIssues.isEmpty || profile == nil
         }
         return false
-    }
-
-    private var disabledGradient: LinearGradient {
-        LinearGradient(colors: [Color.gray.opacity(0.45), Color.gray.opacity(0.30)], startPoint: .leading, endPoint: .trailing)
     }
 
     @MainActor
@@ -522,13 +558,18 @@ struct ReviewFlowView: View {
             remoteFestivalResults = results
             remoteSearchError = nil
         } catch is CancellationError {
+            if FestivalSearchService.normalizedSearchText(remoteSearchQuery) == normalizedQuery {
+                isRemoteSearchLoading = false
+            }
             return
         } catch {
             remoteFestivalResults = []
             remoteSearchError = error.localizedDescription
         }
 
-        isRemoteSearchLoading = false
+        if FestivalSearchService.normalizedSearchText(remoteSearchQuery) == normalizedQuery {
+            isRemoteSearchLoading = false
+        }
     }
 
     private func statusButton(_ status: AttendanceStatus, detail: String) -> some View {
@@ -541,9 +582,8 @@ struct ReviewFlowView: View {
             HStack(spacing: 12) {
                 Image(systemName: status.systemImage)
                     .font(.title3.weight(.black))
-                    .foregroundStyle(draft.status == status ? .white : WristlistTheme.coral)
+                    .foregroundStyle(draft.status == status ? WristlistTheme.accent(for: selectedFestival?.palette ?? .sunset) : WristlistTheme.secondaryText(for: colorScheme))
                     .frame(width: 44, height: 44)
-                    .background(draft.status == status ? WristlistTheme.gradient(for: selectedFestival?.palette ?? .sunset) : LinearGradient(colors: [Color.clear], startPoint: .leading, endPoint: .trailing), in: Circle())
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(status.title)
@@ -557,11 +597,11 @@ struct ReviewFlowView: View {
 
                 Spacer()
             }
-            .padding(12)
-            .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(draft.status == status ? WristlistTheme.coral.opacity(0.75) : WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
+            .padding(.vertical, 13)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(draft.status == status ? WristlistTheme.coral.opacity(0.75) : WristlistTheme.divider(for: colorScheme))
+                    .frame(height: draft.status == status ? 2 : 1)
             }
         }
         .buttonStyle(.plain)
@@ -582,10 +622,11 @@ struct ReviewFlowView: View {
                 .font(.caption.weight(.bold))
                 .lineLimit(2)
                 .minimumScaleFactor(0.78)
-                .foregroundStyle(isSelected ? .white : WristlistTheme.primaryText(for: colorScheme))
+                .foregroundStyle(isSelected ? WristlistTheme.accent(for: selectedFestival?.palette ?? .sunset) : WristlistTheme.primaryText(for: colorScheme))
                 .padding(.horizontal, 10)
                 .frame(maxWidth: .infinity, minHeight: 44)
-                .background(isSelected ? WristlistTheme.gradient(for: selectedFestival?.palette ?? .sunset) : LinearGradient(colors: [WristlistTheme.cardFill(for: colorScheme)], startPoint: .leading, endPoint: .trailing), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .background(WristlistTheme.fieldFill(for: colorScheme))
+                .clipShape(RoundedRectangle(cornerRadius: WristlistTheme.cornerSmall, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(isSelected ? "Remove \(artist) from favorite performances" : "Add \(artist) to favorite performances")
@@ -681,55 +722,55 @@ private struct ReviewFlowExternalFestivalRow: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            thumbnail
+        VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 12) {
+                thumbnail
 
-            VStack(alignment: .leading, spacing: 5) {
-                Text(result.title)
-                    .font(.headline.weight(.black))
-                    .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.84)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(result.title)
+                        .font(.system(size: 20, weight: .black, design: .serif))
+                        .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.84)
 
-                Text(result.subtitle)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
-                    .lineLimit(1)
+                    Text(result.subtitle)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
+                        .lineLimit(1)
 
-                Text(result.summary)
-                    .font(.caption)
-                    .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
-                    .lineLimit(2)
+                    Text(result.summary)
+                        .font(.caption)
+                        .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
+                        .lineLimit(2)
 
-                Text(result.sourceName)
-                    .font(.caption2.weight(.black))
-                    .foregroundStyle(WristlistTheme.coral)
-                    .textCase(.uppercase)
-            }
-
-            Spacer(minLength: 8)
-
-            Button(action: onAdd) {
-                if isImporting {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(.white)
-                } else {
-                    Label("Add", systemImage: "plus")
+                    Text(result.sourceName)
+                        .font(.caption2.weight(.black))
+                        .foregroundStyle(WristlistTheme.coral)
+                        .textCase(.uppercase)
                 }
+
+                Spacer(minLength: 8)
+
+                Button(action: onAdd) {
+                    if isImporting {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(.white)
+                    } else {
+                        Label("Add", systemImage: "plus")
+                    }
+                }
+                .font(.caption.weight(.black))
+                .foregroundStyle(.white)
+                .frame(minWidth: 76, minHeight: 34)
+                .background(WristlistTheme.coral.opacity(isImporting ? 0.68 : 1))
+                .clipShape(RoundedRectangle(cornerRadius: WristlistTheme.cornerSmall, style: .continuous))
+                .disabled(isImporting)
+                .accessibilityLabel("Add \(result.title) to this review")
             }
-            .font(.caption.weight(.black))
-            .foregroundStyle(.white)
-            .frame(minWidth: 76, minHeight: 34)
-            .background(WristlistTheme.coral.opacity(isImporting ? 0.68 : 1), in: Capsule())
-            .disabled(isImporting)
-            .accessibilityLabel("Add \(result.title) to this review")
-        }
-        .padding(12)
-        .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
+            .padding(.vertical, 14)
+
+            EditorialDivider()
         }
     }
 
@@ -750,9 +791,9 @@ private struct ReviewFlowExternalFestivalRow: View {
                 placeholderThumbnail
             }
         }
-        .frame(width: 58, height: 58)
-        .background(WristlistTheme.tertiaryFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .frame(width: 70, height: 84)
+        .background(WristlistTheme.fieldFill(for: colorScheme))
+        .clipShape(RoundedRectangle(cornerRadius: WristlistTheme.cornerSmall, style: .continuous))
     }
 
     private var placeholderThumbnail: some View {
@@ -778,7 +819,7 @@ private struct ReviewFlowRemoteSearchStatusRow: View {
                 .font(.headline.weight(.black))
                 .foregroundStyle(WristlistTheme.coral)
                 .frame(width: 42, height: 42)
-                .background(WristlistTheme.tertiaryFill(for: colorScheme), in: Circle())
+                .background(WristlistTheme.fieldFill(for: colorScheme), in: Circle())
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
@@ -799,11 +840,9 @@ private struct ReviewFlowRemoteSearchStatusRow: View {
                     .foregroundStyle(WristlistTheme.coral)
             }
         }
-        .padding(12)
-        .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
+        .padding(.vertical, 12)
+        .overlay(alignment: .bottom) {
+            EditorialDivider()
         }
         .accessibilityElement(children: .combine)
     }
@@ -813,6 +852,7 @@ private struct ScoreSlider: View {
     let title: String
     @Binding var score: Double
     let palette: FestivalPalette
+    var isPrimary = false
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -820,22 +860,24 @@ private struct ScoreSlider: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(title)
-                    .font(.subheadline.weight(.black))
+                    .font(isPrimary ? WristlistTheme.sectionTitleFont : .subheadline.weight(.black))
                     .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
                 Spacer()
                 Text(score, format: .number.precision(.fractionLength(1)))
-                    .font(.headline.weight(.black))
+                    .font(isPrimary ? WristlistTheme.ratingFont : .headline.weight(.black))
                     .monospacedDigit()
-                    .foregroundStyle(WristlistTheme.scoreGreen)
+                    .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
             }
 
             Slider(value: $score, in: 0...10, step: 0.1)
-                .tint(WristlistTheme.scoreGreen)
+                .tint(WristlistTheme.accent(for: palette))
                 .accessibilityLabel(title)
                 .accessibilityValue("\(score, specifier: "%.1f") out of 10")
         }
-        .padding(12)
-        .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.vertical, 10)
+        .overlay(alignment: .bottom) {
+            EditorialDivider()
+        }
     }
 }
 

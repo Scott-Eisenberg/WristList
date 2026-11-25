@@ -44,7 +44,7 @@ struct FeedView: View {
                     .ignoresSafeArea()
 
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 24) {
+                    VStack(alignment: .leading, spacing: 30) {
                         FeedHeaderView(profile: currentProfile, onNotifications: { isShowingNotifications = true })
 
                         LogFestivalButton {
@@ -64,9 +64,9 @@ struct FeedView: View {
                             onLogFestival: { isShowingReviewFlow = true }
                         )
                     }
-                    .padding(.horizontal, 18)
-                    .padding(.top, 16)
-                    .padding(.bottom, 28)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 14)
+                    .padding(.bottom, 34)
                 }
                 .refreshable {
                     await refreshFeed()
@@ -80,7 +80,7 @@ struct FeedView: View {
             ReviewFlowView(festivals: festivals, profile: currentProfile)
         }
         .sheet(isPresented: $isShowingNotifications) {
-            NotificationsSheet()
+            NotificationsSheet(festivals: festivals, reviews: friendReviews)
         }
         .alert("Feed update failed", isPresented: Binding(get: { actionError != nil }, set: { if !$0 { actionError = nil } })) {
             Button("OK", role: .cancel) { actionError = nil }
@@ -107,38 +107,55 @@ private struct FeedHeaderView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Wristlist")
-                    .font(.system(.title, design: .serif).weight(.bold))
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Wristlist")
+                        .font(WristlistTheme.mastheadFont)
+                        .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.76)
+
+                    Text("Ratings, plans, and field notes from your circle")
+                        .font(WristlistTheme.metadataFont)
+                        .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
+                }
+
+                Spacer(minLength: 8)
+
+                HeaderIconButton(systemImage: "bell.badge", accessibilityLabel: "Open notifications", action: onNotifications)
+            }
+
+            HStack(alignment: .center, spacing: 12) {
+                Rectangle()
+                    .fill(WristlistTheme.brand)
+                    .frame(width: 72, height: 3)
+
+                Text("Culture Log")
+                    .font(WristlistTheme.kickerFont)
+                    .tracking(1.2)
                     .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
 
-                Text("Friend activity and festival rankings")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
-            }
+                Spacer(minLength: 8)
 
-            Spacer(minLength: 8)
-
-            HeaderIconButton(systemImage: "bell.badge", accessibilityLabel: "Open notifications", action: onNotifications)
-
-            NavigationLink {
-                if let profile {
-                    UserProfileDetailView(profile: profile)
-                } else {
-                    EmptyStateView(title: "Profile loading", message: "Your local profile is being prepared.", systemImage: "person.crop.circle")
-                        .padding()
+                NavigationLink {
+                    if let profile {
+                        UserProfileDetailView(profile: profile)
+                    } else {
+                        EmptyStateView(title: "Profile loading", message: "Your local profile is being prepared.", systemImage: "person.crop.circle")
+                            .padding()
+                    }
+                } label: {
+                    AvatarCircle(
+                        initials: profile?.avatarInitials ?? "WL",
+                        palette: profile?.palette ?? .sunset,
+                        size: 44,
+                        fontSize: 14
+                    )
                 }
-            } label: {
-                AvatarCircle(
-                    initials: profile?.avatarInitials ?? "WL",
-                    palette: profile?.palette ?? .sunset,
-                    size: 44,
-                    fontSize: 14
-                )
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open your profile")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Open your profile")
         }
         .accessibilityElement(children: .contain)
     }
@@ -165,7 +182,7 @@ private struct LogFestivalButton: View {
             action()
         } label: {
             HStack(spacing: 12) {
-                Image(systemName: "plus.circle.fill")
+                Image(systemName: "plus")
                     .font(.title3.weight(.bold))
 
                 Text("Log a Festival")
@@ -177,12 +194,9 @@ private struct LogFestivalButton: View {
                     .font(.subheadline.weight(.bold))
             }
             .foregroundStyle(.white)
-            .padding(.horizontal, 18)
-            .frame(minHeight: 52)
-            .background(WristlistTheme.brand, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .scaleEffect(isPressed ? 0.98 : 1)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PrimaryActionButtonStyle())
         .accessibilityLabel("Log a festival")
     }
 }
@@ -199,8 +213,7 @@ private struct FeedLoadingView: View {
                 .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
             Spacer()
         }
-        .padding(14)
-        .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.vertical, 6)
         .accessibilityElement(children: .combine)
     }
 }
@@ -209,8 +222,8 @@ private struct UpcomingFestivalsSection: View {
     let festivals: [WLFestival]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SectionTitleView(title: "Upcoming Festivals", subtitle: "Saved, nearby, and rising weekends")
+        VStack(alignment: .leading, spacing: 16) {
+            SectionTitleView(title: "On Your Radar", subtitle: "Saved, nearby, and rising weekends")
 
             if festivals.isEmpty {
                 EmptyStateView(
@@ -219,22 +232,105 @@ private struct UpcomingFestivalsSection: View {
                     systemImage: "calendar.badge.exclamationmark"
                 )
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 14) {
-                        ForEach(festivals) { festival in
-                            NavigationLink {
-                                FestivalDetailView(festival: festival)
-                            } label: {
-                                UpcomingFestivalCard(festival: festival)
-                            }
-                            .buttonStyle(.plain)
-                        }
+                if let featuredFestival = festivals.first {
+                    NavigationLink {
+                        FestivalDetailView(festival: featuredFestival)
+                    } label: {
+                        FeaturedUpcomingFestival(festival: featuredFestival)
                     }
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 2)
+                    .buttonStyle(.plain)
                 }
-                .padding(.horizontal, -18)
+
+                if festivals.count > 1 {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 18) {
+                            ForEach(Array(festivals.dropFirst())) { festival in
+                                NavigationLink {
+                                    FestivalDetailView(festival: festival)
+                                } label: {
+                                    UpcomingFestivalCard(festival: festival)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 2)
+                    }
+                    .padding(.horizontal, -20)
+                }
             }
+        }
+    }
+}
+
+private struct FeaturedUpcomingFestival: View {
+    let festival: WLFestival
+
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var actionError: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            FestivalArtworkView(festival: festival)
+                .frame(height: 240)
+
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(festival.dateRangeText.uppercased())
+                        .font(WristlistTheme.kickerFont)
+                        .tracking(1)
+                        .foregroundStyle(WristlistTheme.accent(for: festival.palette))
+
+                    Text(festival.name)
+                        .font(WristlistTheme.festivalTitleFont)
+                        .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.74)
+
+                    Text("\(festival.venue), \(festival.cityState)")
+                        .font(WristlistTheme.metadataFont)
+                        .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 10)
+
+                ScoreBadge(score: festival.communityRating, palette: festival.palette, label: "Community rating")
+            }
+
+            HStack(alignment: .center, spacing: 12) {
+                Text(festival.summary)
+                    .font(.subheadline)
+                    .lineSpacing(2)
+                    .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
+                    .lineLimit(3)
+
+                Spacer(minLength: 12)
+
+                Button(action: toggleSave) {
+                    Image(systemName: festival.isSaved ? "bookmark.fill" : "bookmark")
+                        .font(.headline.weight(.black))
+                        .foregroundStyle(festival.isSaved ? WristlistTheme.accent(for: festival.palette) : WristlistTheme.primaryText(for: colorScheme))
+                        .frame(width: 44, height: 44)
+                        .background(WristlistTheme.fieldFill(for: colorScheme), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(festival.isSaved ? "Remove \(festival.name) from saved festivals" : "Save \(festival.name)")
+            }
+        }
+        .alert("Save failed", isPresented: Binding(get: { actionError != nil }, set: { if !$0 { actionError = nil } })) {
+            Button("OK", role: .cancel) { actionError = nil }
+        } message: {
+            Text(actionError ?? "Try again.")
+        }
+    }
+
+    private func toggleSave() {
+        do {
+            try WristlistDataController.toggleSave(festival, context: modelContext)
+        } catch {
+            actionError = error.localizedDescription
         }
     }
 }
@@ -247,29 +343,33 @@ private struct UpcomingFestivalCard: View {
     @State private var actionError: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 11) {
             FestivalArtworkView(festival: festival)
-                .frame(width: 162, height: 108)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .frame(width: 168, height: 206)
 
             VStack(alignment: .leading, spacing: 7) {
                 Text(festival.dateRangeText)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(WristlistTheme.brand)
+                    .font(WristlistTheme.kickerFont)
+                    .tracking(0.8)
+                    .foregroundStyle(WristlistTheme.accent(for: festival.palette))
 
                 Text(festival.name)
-                    .font(.headline.weight(.bold))
-                    .lineLimit(1)
+                    .font(.system(size: 20, weight: .black, design: .serif))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.72)
                     .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
 
                 Text(festival.cityState)
-                    .font(.caption.weight(.medium))
+                    .font(WristlistTheme.metadataFont)
                     .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
 
-                HStack(spacing: 6) {
-                    ForEach(festival.genres.prefix(2), id: \.self) { tag in
-                        WristbandTag(text: tag, palette: festival.palette)
-                    }
+                HStack(alignment: .firstTextBaseline) {
+                    WristbandTag(text: festival.genres.first ?? "Festival", palette: festival.palette)
+                    Spacer(minLength: 8)
+                    Text(festival.communityRating, format: .number.precision(.fractionLength(1)))
+                        .font(.headline.weight(.black))
+                        .monospacedDigit()
+                        .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
                 }
             }
             .padding(.horizontal, 2)
@@ -282,34 +382,18 @@ private struct UpcomingFestivalCard: View {
                 }
             } label: {
                 Label(festival.isSaved ? "Saved" : "Save", systemImage: festival.isSaved ? "bookmark.fill" : "bookmark")
-                    .font(.caption.weight(.bold))
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 44)
-                    .foregroundStyle(festival.isSaved ? .white : WristlistTheme.primaryText(for: colorScheme))
-                    .background(saveBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(festival.isSaved ? WristlistTheme.accent(for: festival.palette) : WristlistTheme.secondaryText(for: colorScheme))
             }
             .buttonStyle(.plain)
             .accessibilityLabel(festival.isSaved ? "Remove \(festival.name) from saved festivals" : "Save \(festival.name)")
         }
-        .padding(10)
-        .frame(width: 182)
-        .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
-        }
+        .frame(width: 168, alignment: .topLeading)
         .alert("Save failed", isPresented: Binding(get: { actionError != nil }, set: { if !$0 { actionError = nil } })) {
             Button("OK", role: .cancel) { actionError = nil }
         } message: {
             Text(actionError ?? "Try again.")
         }
-    }
-
-    private var saveBackground: LinearGradient {
-        if festival.isSaved {
-            return WristlistTheme.gradient(for: festival.palette)
-        }
-        return LinearGradient(colors: [WristlistTheme.cardFill(for: colorScheme)], startPoint: .leading, endPoint: .trailing)
     }
 }
 
@@ -320,8 +404,8 @@ private struct FriendsReviewsSection: View {
     let onLogFestival: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SectionTitleView(title: "Friends' Reviews", subtitle: "Fresh ratings from your circle")
+        VStack(alignment: .leading, spacing: 16) {
+            SectionTitleView(title: "Friend Notes", subtitle: "Fresh ratings from your circle")
 
             if reviews.isEmpty {
                 EmptyStateView(
@@ -332,7 +416,7 @@ private struct FriendsReviewsSection: View {
                     action: onLogFestival
                 )
             } else {
-                LazyVStack(spacing: 14) {
+                LazyVStack(spacing: 0) {
                     ForEach(reviews) { review in
                         if let festival = festivals.first(where: { $0.id == review.festivalID }) {
                             ReviewCardView(review: review, festival: festival, profile: profile)
@@ -346,14 +430,42 @@ private struct FriendsReviewsSection: View {
 }
 
 private struct NotificationsSheet: View {
+    let festivals: [WLFestival]
+    let reviews: [WLReview]
+
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             List {
-                Label("Maya saved Nova Bloom after your review", systemImage: "bookmark.fill")
-                Label("Lunar Pier is trending near Los Angeles", systemImage: "chart.line.uptrend.xyaxis")
-                Label("Your Midnight Atlas review passed 30 likes", systemImage: "heart.fill")
+                if reviews.isEmpty && festivals.filter({ $0.timing == .upcoming }).isEmpty {
+                    ContentUnavailableView(
+                        "Nothing new",
+                        systemImage: "bell",
+                        description: Text("Friend ratings and saved festival dates will show up here.")
+                    )
+                }
+
+                if !reviews.isEmpty {
+                    Section("Friend ratings") {
+                        ForEach(reviews.prefix(4)) { review in
+                            let festivalName = festivals.first { $0.id == review.festivalID }?.name ?? "a festival"
+                            Label {
+                                Text("\(review.userName) rated \(festivalName) \(review.overallScore, format: .number.precision(.fractionLength(1)))")
+                            } icon: {
+                                Image(systemName: "quote.bubble")
+                            }
+                        }
+                    }
+                }
+
+                if festivals.contains(where: { $0.timing == .upcoming }) {
+                    Section("Upcoming") {
+                        ForEach(festivals.filter { $0.timing == .upcoming }.sorted { $0.startDate < $1.startDate }.prefix(4)) { festival in
+                            Label("\(festival.name) · \(festival.dateRangeText)", systemImage: "calendar")
+                        }
+                    }
+                }
             }
             .navigationTitle("Notifications")
 #if os(iOS)

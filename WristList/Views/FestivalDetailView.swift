@@ -33,7 +33,7 @@ struct FestivalDetailView: View {
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: 30) {
                 hero
                 actionStrip
                 descriptionSection
@@ -42,9 +42,9 @@ struct FestivalDetailView: View {
                 friendsSection
                 reviewsSection
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 12)
-            .padding(.bottom, 28)
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 34)
         }
         .background(WristlistTheme.appBackground(for: colorScheme).ignoresSafeArea())
         .navigationTitle(festival.name)
@@ -62,36 +62,42 @@ struct FestivalDetailView: View {
     }
 
     private var hero: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 18) {
             FestivalArtworkView(festival: festival)
-                .frame(height: 210)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .frame(height: 292)
                 .overlay(alignment: .topLeading) {
                     FestivalStatusBadge(status: festival.status, palette: festival.palette)
+                        .padding(14)
+                        .background(WristlistTheme.fieldFill(for: colorScheme))
+                        .clipShape(RoundedRectangle(cornerRadius: WristlistTheme.cornerSmall, style: .continuous))
                         .padding(12)
                 }
+
+            if let photo = FestivalPhoto.catalog[festival.id] {
+                FestivalPhotoCredit(photo: photo)
+            }
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(festival.name)
-                        .font(.title2.weight(.bold))
+                        .font(WristlistTheme.pageTitleFont)
                         .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
                         .lineLimit(2)
-                        .minimumScaleFactor(0.84)
+                        .minimumScaleFactor(0.68)
 
                     Spacer(minLength: 8)
 
                     ScoreBadge(score: festival.communityRating, palette: festival.palette, label: "Community rating")
                 }
 
-                VStack(alignment: .leading, spacing: 5) {
-                    Label("\(festival.dateRangeText) · \(festival.timing.title)", systemImage: "calendar")
-                    Label("\(festival.venue), \(festival.cityState)", systemImage: "mappin.and.ellipse")
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("\(festival.dateRangeText) / \(festival.timing.title)".uppercased())
+                    Text("\(festival.venue), \(festival.cityState)")
                 }
-                .font(.subheadline.weight(.semibold))
+                .font(WristlistTheme.metadataFont)
                 .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
 
-                HStack(spacing: 7) {
+                HStack(spacing: 14) {
                     ForEach(festival.genres.prefix(4), id: \.self) { genre in
                         WristbandTag(text: genre, palette: festival.palette)
                     }
@@ -101,7 +107,7 @@ struct FestivalDetailView: View {
     }
 
     private var actionStrip: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             HStack(spacing: 10) {
                 detailActionButton(
                     title: festival.isSaved ? "Saved" : "Save",
@@ -119,10 +125,11 @@ struct FestivalDetailView: View {
 
                 ShareLink(item: "\(festival.name) on Wristlist · \(festival.cityState) · \(festival.dateRangeText)") {
                     Label("Share", systemImage: "square.and.arrow.up")
-                        .font(.subheadline.weight(.bold))
+                        .font(.subheadline.weight(.black))
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: 44)
-                        .background(WristlistTheme.cardFill(for: colorScheme), in: Capsule())
+                        .background(WristlistTheme.fieldFill(for: colorScheme))
+                        .clipShape(RoundedRectangle(cornerRadius: WristlistTheme.cornerSmall, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Share \(festival.name)")
@@ -132,13 +139,8 @@ struct FestivalDetailView: View {
                 isShowingReviewFlow = true
             } label: {
                 Label(currentUserReview == nil ? "Write Review" : "Edit Your Review", systemImage: currentUserReview == nil ? "square.and.pencil" : "pencil")
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 50)
-                    .background(WristlistTheme.brand, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PrimaryActionButtonStyle())
             .accessibilityLabel(currentUserReview == nil ? "Write review" : "Edit your review")
         }
     }
@@ -157,7 +159,7 @@ struct FestivalDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             SectionTitleView(title: "Community Breakdown", subtitle: "Based on \(festival.communityReviewCount) local sample reviews")
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+            VStack(spacing: 14) {
                 ForEach(festival.categoryScores) { score in
                     CategoryScoreView(score: score, palette: festival.palette)
                 }
@@ -175,10 +177,10 @@ struct FestivalDetailView: View {
                         Text("\(index + 1)")
                             .font(.caption.weight(.black))
                             .monospacedDigit()
-                            .foregroundStyle(WristlistTheme.scoreGreen)
+                            .foregroundStyle(WristlistTheme.accent(for: festival.palette))
                             .frame(width: 24)
                         Text(artist)
-                            .font(.subheadline.weight(.semibold))
+                            .font(.headline.weight(.black))
                             .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
                         Spacer()
                     }
@@ -188,12 +190,6 @@ struct FestivalDetailView: View {
                         Divider().overlay(WristlistTheme.cardStroke(for: colorScheme))
                     }
                 }
-            }
-            .padding(.horizontal, 12)
-            .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
             }
         }
     }
@@ -211,9 +207,9 @@ struct FestivalDetailView: View {
                             friendChip(name: name)
                         }
                     }
-                    .padding(.horizontal, 18)
+                    .padding(.horizontal, 20)
                 }
-                .padding(.horizontal, -18)
+                .padding(.horizontal, -20)
             }
         }
     }
@@ -231,7 +227,7 @@ struct FestivalDetailView: View {
                     action: { isShowingReviewFlow = true }
                 )
             } else {
-                LazyVStack(spacing: 14) {
+                LazyVStack(spacing: 0) {
                     ForEach(festivalReviews) { review in
                         ReviewCardView(review: review, festival: festival, profile: profile)
                     }
@@ -249,7 +245,8 @@ struct FestivalDetailView: View {
                 .foregroundStyle(isPrimary ? .white : WristlistTheme.primaryText(for: colorScheme))
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 44)
-                .background(isPrimary ? WristlistTheme.gradient(for: festival.palette) : LinearGradient(colors: [WristlistTheme.cardFill(for: colorScheme)], startPoint: .leading, endPoint: .trailing), in: Capsule())
+                .background(isPrimary ? WristlistTheme.accent(for: festival.palette) : WristlistTheme.fieldFill(for: colorScheme))
+                .clipShape(RoundedRectangle(cornerRadius: WristlistTheme.cornerSmall, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)
@@ -263,11 +260,12 @@ struct FestivalDetailView: View {
                 .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
                 .lineLimit(1)
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 4)
         .frame(height: 44)
-        .background(WristlistTheme.cardFill(for: colorScheme), in: Capsule())
-        .overlay {
-            Capsule().strokeBorder(WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(WristlistTheme.divider(for: colorScheme))
+                .frame(height: 1)
         }
         .accessibilityElement(children: .combine)
     }

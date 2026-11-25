@@ -109,6 +109,43 @@
 - Swift parser checks passed for the changed files.
 - `git diff --check` passed.
 
+## Iteration 5: Product Visual Redesign
+
+### Tested
+
+- Audited the current SwiftUI design primitives and the Feed, Discover, My List, Profile, Festival Detail, Review Flow, Edit Profile, Settings, and user profile detail screens.
+- Checked the external festival search source for `Beyond Wonderland`; Wikipedia returned the expected festival page.
+- Ran Xcode live diagnostics on the redesigned Swift files.
+- Built the app with Xcode MCP `BuildProject`.
+- Attempted full Xcode MCP tests, test-list retrieval, code snippet execution, and preview rendering.
+
+### Failure
+
+- The existing UI relied on repeated card containers, capsules, segmented controls, small stat widgets, generic form layouts, and equal-weight dashboard sections.
+- The Log Festival and Discover online search loading flags could stay stale after a search task was canceled while typing quickly.
+- Simulator-backed validation is still blocked in this session:
+  - `RunAllTests` timed out after 120 seconds.
+  - `GetBuildLog` timed out after 120 seconds after the test timeout.
+  - `GetTestList` timed out after 120 seconds.
+  - `RunCodeSnippet` timed out after 120 seconds.
+  - `RenderPreview` timed out after 120 seconds.
+  - Command-line Xcode access reports `CoreSimulatorService connection became invalid`.
+
+### Fix
+
+- Added `DESIGN.md` with the new design direction and system rules.
+- Reworked the theme into a stronger editorial color, type, spacing, divider, and rating system.
+- Rebuilt shared components around open rows, hard dividers, poster-style festival art, understated tags, and a reusable rating mark.
+- Redesigned Feed, Discover, My List, Profile, Festival Detail, Review cards, Review Flow, Edit Profile, Settings, and user profile detail around the new system.
+- Updated Discover and Review Flow remote search cancellation handling so stale canceled tasks do not strand the loading state.
+
+### Status
+
+- Xcode live diagnostics passed on all touched Swift files.
+- `BuildProject` passed after the redesign.
+- `git diff --check` passed.
+- Full tests, preview rendering, and manual simulator QA remain blocked by the Xcode/CoreSimulator execution issue in this environment.
+
 ## User Flows Covered By Source/Static QA
 
 - Feed launch and local sample-data seeding.

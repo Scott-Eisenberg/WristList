@@ -40,15 +40,15 @@ struct MyListView: View {
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 28) {
                     header
                     segmentedControl
                     controls
                     listContent
                 }
-                .padding(.horizontal, 18)
+                .padding(.horizontal, 20)
                 .padding(.top, 16)
-                .padding(.bottom, 28)
+                .padding(.bottom, 34)
             }
             .background(WristlistTheme.appBackground(for: colorScheme).ignoresSafeArea())
             .navigationTitle("My List")
@@ -66,23 +66,43 @@ struct MyListView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 7) {
             Text("Your festival shelf")
-                .font(.title2.weight(.bold))
+                .font(WristlistTheme.pageTitleFont)
                 .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
                 .lineLimit(2)
+                .minimumScaleFactor(0.76)
 
             Text("Rank attended weekends, track saved festivals, and keep future plans organized.")
-                .font(.caption.weight(.semibold))
+                .font(.body)
+                .lineSpacing(3)
                 .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
         }
     }
 
     private var segmentedControl: some View {
-        Picker("List section", selection: $selectedSection) {
-            ForEach(MyListSection.allCases) { section in
-                Text(section.title).tag(section)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 18) {
+                ForEach(MyListSection.allCases) { section in
+                    Button {
+                        selectedSection = section
+                    } label: {
+                        VStack(alignment: .leading, spacing: 7) {
+                            Text(section.title.uppercased())
+                                .font(WristlistTheme.kickerFont)
+                                .tracking(1.0)
+
+                            Rectangle()
+                                .fill(selectedSection == section ? WristlistTheme.brand : WristlistTheme.divider(for: colorScheme))
+                                .frame(width: selectedSection == section ? 42 : 24, height: 3)
+                        }
+                        .foregroundStyle(selectedSection == section ? WristlistTheme.primaryText(for: colorScheme) : WristlistTheme.secondaryText(for: colorScheme))
+                        .frame(minHeight: 44, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
+            .padding(.horizontal, 20)
         }
-        .pickerStyle(.segmented)
+        .padding(.horizontal, -20)
         .accessibilityLabel("Choose list section")
         .onChange(of: selectedSection) { _, newSection in
             sortOption = newSection == .ranked ? .ranking : .date
@@ -90,7 +110,7 @@ struct MyListView: View {
     }
 
     private var controls: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 18) {
             Menu {
                 Picker("Sort", selection: $sortOption) {
                     ForEach(sortOptions) { option in
@@ -99,10 +119,14 @@ struct MyListView: View {
                 }
             } label: {
                 Label(sortOption.title, systemImage: "arrow.up.arrow.down")
-                    .font(.subheadline.weight(.bold))
+                    .font(WristlistTheme.kickerFont)
+                    .tracking(0.7)
                     .frame(minHeight: 44)
-                    .padding(.horizontal, 12)
-                    .background(WristlistTheme.cardFill(for: colorScheme), in: Capsule())
+                    .overlay(alignment: .bottom) {
+                        Rectangle()
+                            .fill(WristlistTheme.divider(for: colorScheme))
+                            .frame(height: 1)
+                    }
             }
             .disabled(selectedSection == .ranked)
             .opacity(selectedSection == .ranked ? 0.55 : 1)
@@ -115,17 +139,22 @@ struct MyListView: View {
                 }
             } label: {
                 Label(genreFilter, systemImage: "waveform")
-                    .font(.subheadline.weight(.bold))
+                    .font(WristlistTheme.kickerFont)
+                    .tracking(0.7)
                     .frame(minHeight: 44)
-                    .padding(.horizontal, 12)
-                    .background(WristlistTheme.cardFill(for: colorScheme), in: Capsule())
+                    .overlay(alignment: .bottom) {
+                        Rectangle()
+                            .fill(WristlistTheme.divider(for: colorScheme))
+                            .frame(height: 1)
+                    }
             }
 
             Spacer()
 
             if genreFilter != "All" {
                 Button("Clear") { genreFilter = "All" }
-                    .font(.subheadline.weight(.bold))
+                    .font(WristlistTheme.kickerFont)
+                    .tracking(0.7)
                     .foregroundStyle(WristlistTheme.coral)
                     .frame(minHeight: 44)
             }
@@ -142,7 +171,7 @@ struct MyListView: View {
                 systemImage: selectedSection.systemImage
             )
         } else {
-            LazyVStack(spacing: 10) {
+            LazyVStack(spacing: 0) {
                 ForEach(Array(filteredFestivals.enumerated()), id: \.element.id) { index, festival in
                     NavigationLink {
                         FestivalDetailView(festival: festival)
@@ -263,27 +292,26 @@ private struct MyListFestivalRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            FestivalCompactRow(festival: festival)
+        VStack(spacing: 0) {
+            HStack(alignment: .center, spacing: 12) {
+                FestivalCompactRow(festival: festival)
 
-            VStack(spacing: 6) {
-                Image(systemName: section.systemImage)
-                    .font(.system(size: 14, weight: .black))
-                Text(trailingText)
-                    .font(.caption2.weight(.black))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.70)
-                    .multilineTextAlignment(.center)
+                VStack(alignment: .trailing, spacing: 3) {
+                    Image(systemName: section.systemImage)
+                        .font(.system(size: 14, weight: .black))
+                    Text(trailingText)
+                        .font(WristlistTheme.kickerFont)
+                        .tracking(0.4)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.70)
+                        .multilineTextAlignment(.trailing)
+                }
+                .foregroundStyle(WristlistTheme.accent(for: festival.palette))
+                .frame(width: 72, alignment: .trailing)
             }
-            .foregroundStyle(.white)
-            .frame(width: 64, height: 54)
-            .background(WristlistTheme.gradient(for: festival.palette), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        }
-        .padding(12)
-        .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
+            .padding(.vertical, 12)
+
+            EditorialDivider()
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(festival.name), \(section.title), \(trailingText)")

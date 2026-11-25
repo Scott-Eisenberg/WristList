@@ -9,6 +9,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
     @AppStorage("appearancePreference") private var appearancePreferenceRaw = AppearancePreference.system.rawValue
     @Query private var profiles: [WLProfile]
 
@@ -21,59 +22,126 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Appearance") {
-                    Picker("Appearance", selection: $appearancePreferenceRaw) {
-                        ForEach(AppearancePreference.allCases) { preference in
-                            Text(preference.title).tag(preference.rawValue)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .accessibilityLabel("Appearance selection")
-                }
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 28) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Settings")
+                            .font(WristlistTheme.pageTitleFont)
+                            .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
 
-                if let profile {
-                    Section("Notifications") {
-                        Toggle("Festival reminders", isOn: Binding(get: { profile.notificationsEnabled }, set: { newValue in
-                            update(profile) { profile in
-                                profile.notificationsEnabled = newValue
-                            }
-                        }))
-                        .accessibilityLabel("Festival reminders")
-
-                        Toggle("Review likes and comments", isOn: Binding(get: { profile.reviewLikesEnabled }, set: { newValue in
-                            update(profile) { profile in
-                                profile.reviewLikesEnabled = newValue
-                            }
-                        }))
-                        .accessibilityLabel("Review likes and comments")
+                        Text("Control how your festival shelf appears and who can see your reviews.")
+                            .font(.body)
+                            .lineSpacing(3)
+                            .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
                     }
 
-                    Section("Privacy") {
-                        Picker("Profile visibility", selection: Binding(get: { profile.privacy }, set: { newValue in update(profile) { $0.privacy = newValue } })) {
-                            ForEach(ProfilePrivacy.allCases) { privacy in
-                                Text(privacy.title).tag(privacy)
+                    VStack(alignment: .leading, spacing: 14) {
+                        SectionTitleView(title: "Appearance")
+
+                        HStack(spacing: 12) {
+                            ForEach(AppearancePreference.allCases) { preference in
+                                SettingsOptionButton(
+                                    title: preference.title,
+                                    systemImage: appearanceIcon(for: preference),
+                                    isSelected: appearancePreferenceRaw == preference.rawValue,
+                                    action: { appearancePreferenceRaw = preference.rawValue }
+                                )
                             }
                         }
-                        .accessibilityLabel("Profile visibility")
+                        .accessibilityLabel("Appearance selection")
+                    }
+
+                    if let profile {
+                        VStack(alignment: .leading, spacing: 12) {
+                            SectionTitleView(title: "Notifications")
+
+                            Toggle("Festival reminders", isOn: Binding(get: { profile.notificationsEnabled }, set: { newValue in
+                                update(profile) { profile in
+                                    profile.notificationsEnabled = newValue
+                                }
+                            }))
+                            .font(.headline.weight(.black))
+                            .padding(.vertical, 10)
+                            .overlay(alignment: .bottom) {
+                                EditorialDivider()
+                            }
+                            .accessibilityLabel("Festival reminders")
+
+                            Toggle("Review likes and comments", isOn: Binding(get: { profile.reviewLikesEnabled }, set: { newValue in
+                                update(profile) { profile in
+                                    profile.reviewLikesEnabled = newValue
+                                }
+                            }))
+                            .font(.headline.weight(.black))
+                            .padding(.vertical, 10)
+                            .overlay(alignment: .bottom) {
+                                EditorialDivider()
+                            }
+                            .accessibilityLabel("Review likes and comments")
+                        }
+
+                        VStack(alignment: .leading, spacing: 14) {
+                            SectionTitleView(title: "Privacy")
+
+                            HStack(spacing: 12) {
+                                ForEach(ProfilePrivacy.allCases) { privacy in
+                                    SettingsOptionButton(
+                                        title: privacy.title,
+                                        systemImage: privacyIcon(for: privacy),
+                                        isSelected: profile.privacy == privacy,
+                                        action: { update(profile) { $0.privacy = privacy } }
+                                    )
+                                }
+                            }
+                            .accessibilityLabel("Profile visibility")
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionTitleView(title: "About Wristlist")
+
+                        HStack(alignment: .firstTextBaseline) {
+                            Text("Version")
+                                .font(.headline.weight(.black))
+                                .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
+                            Spacer()
+                            Text("Local")
+                                .font(WristlistTheme.metadataFont)
+                                .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
+                        }
+                        .padding(.vertical, 10)
+                        .overlay(alignment: .bottom) {
+                            EditorialDivider()
+                        }
+
+                        Text("Festivals, rankings, reviews, likes, comments, and profile edits are stored locally on this device. No live backend or account system is connected yet.")
+                            .font(.subheadline)
+                            .lineSpacing(3)
+                            .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionTitleView(title: "Sample Data")
+
+                        Button("Reset Sample Data", role: .destructive) {
+                            showingResetConfirmation = true
+                        }
+                        .font(.headline.weight(.black))
+                        .foregroundStyle(WristlistTheme.coral)
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .overlay(alignment: .bottom) {
+                            EditorialDivider()
+                        }
+                        .accessibilityLabel("Reset sample data")
                     }
                 }
-
-                Section("About Wristlist") {
-                    LabeledContent("Version", value: "Local MVP")
-                    Text("Wristlist stores this MVP's festivals, rankings, reviews, likes, comments, and profile edits locally with SwiftData. No live backend or account system is connected yet.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-                Section("Sample Data") {
-                    Button("Reset Sample Data", role: .destructive) {
-                        showingResetConfirmation = true
-                    }
-                    .accessibilityLabel("Reset sample data")
-                }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 34)
             }
-            .navigationTitle("Settings")
+            .background(WristlistTheme.appBackground(for: colorScheme).ignoresSafeArea())
+            .navigationTitle("")
 #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
 #endif
@@ -112,6 +180,61 @@ struct SettingsView: View {
         } catch {
             actionError = error.localizedDescription
         }
+    }
+
+    private func appearanceIcon(for preference: AppearancePreference) -> String {
+        switch preference {
+        case .system:
+            "circle.lefthalf.filled"
+        case .light:
+            "sun.max"
+        case .dark:
+            "moon"
+        }
+    }
+
+    private func privacyIcon(for privacy: ProfilePrivacy) -> String {
+        switch privacy {
+        case .friends:
+            "person.2"
+        case .privateProfile:
+            "lock"
+        case .publicProfile:
+            "globe"
+        }
+    }
+}
+
+private struct SettingsOptionButton: View {
+    let title: String
+    let systemImage: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 9) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 17, weight: .black))
+
+                Text(title.uppercased())
+                    .font(WristlistTheme.kickerFont)
+                    .tracking(0.7)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.76)
+
+                Rectangle()
+                    .fill(isSelected ? WristlistTheme.brand : WristlistTheme.divider(for: colorScheme))
+                    .frame(height: 3)
+            }
+            .foregroundStyle(isSelected ? WristlistTheme.primaryText(for: colorScheme) : WristlistTheme.secondaryText(for: colorScheme))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 10)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
     }
 }
 

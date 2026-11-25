@@ -218,6 +218,10 @@ enum WristlistDataController {
         review.favoritePerformances = draft.favoritePerformances
         review.isVisibleToFriends = draft.isVisibleToFriends
         review.isCurrentUser = true
+        review.journalLineupScore = draft.journalLineupScore
+        review.journalOrganizationScore = draft.journalOrganizationScore
+        review.journalVenueScore = draft.journalVenueScore
+        review.journalVibeScore = draft.journalVibeScore
         review.updatedAt = .now
 
         if existingReview == nil {
@@ -355,18 +359,14 @@ enum WristlistDataController {
     }
 
     private static func seedSampleData(in context: ModelContext) throws {
-        for festival in SampleFeedData.festivals() {
+        for festival in JournalSampleData.festivals() {
             context.insert(festival)
         }
 
         context.insert(SampleProfileData.profile())
 
-        for review in SampleFeedData.reviews() {
+        for review in JournalSampleData.reviews() {
             context.insert(review)
-        }
-
-        for comment in SampleFeedData.comments() {
-            context.insert(comment)
         }
 
         context.insert(WLAppMetadata(key: seedMarkerKey, value: "true"))

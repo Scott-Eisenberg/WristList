@@ -17,7 +17,7 @@ struct ReviewCardView: View {
     @State private var actionError: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 12) {
                 NavigationLink {
                     UserProfileDetailView(review: review)
@@ -32,13 +32,13 @@ struct ReviewCardView: View {
                         UserProfileDetailView(review: review)
                     } label: {
                         Text(review.userName)
-                            .font(.subheadline.weight(.bold))
+                            .font(.headline.weight(.black))
                             .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
                     }
                     .buttonStyle(.plain)
 
                     Text("\(review.userHandle) reviewed \(festival.name)")
-                        .font(.caption.weight(.semibold))
+                        .font(WristlistTheme.metadataFont)
                         .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
                         .lineLimit(2)
                 }
@@ -60,11 +60,12 @@ struct ReviewCardView: View {
 
             if !review.favoritePerformances.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Favorite performances")
-                        .font(.caption.weight(.black))
+                    Text("Favorite performances".uppercased())
+                        .font(WristlistTheme.kickerFont)
+                        .tracking(0.8)
                         .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
                     Text(review.favoritePerformances.joined(separator: " / "))
-                        .font(.caption)
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
                         .lineLimit(2)
                 }
@@ -80,11 +81,9 @@ struct ReviewCardView: View {
                 onSave: toggleSave
             )
         }
-        .padding(14)
-        .background(WristlistTheme.cardFill(for: colorScheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(WristlistTheme.cardStroke(for: colorScheme), lineWidth: 1)
+        .padding(.vertical, 20)
+        .overlay(alignment: .bottom) {
+            EditorialDivider()
         }
         .accessibilityElement(children: .contain)
         .sheet(isPresented: $isShowingComments) {
@@ -125,27 +124,27 @@ private struct FestivalReviewSummary: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
                 FestivalArtworkView(festival: festival)
-                    .frame(width: 88, height: 88)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .frame(width: 94, height: 118)
 
                 VStack(alignment: .leading, spacing: 8) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(festival.name)
-                            .font(.headline.weight(.black))
+                            .font(.system(size: 22, weight: .black, design: .serif))
                             .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.82)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.70)
 
-                        Label(festival.cityState, systemImage: "mappin.and.ellipse")
-                            .font(.caption.weight(.semibold))
+                        Text(festival.cityState)
+                            .font(WristlistTheme.metadataFont)
                             .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
                             .lineLimit(1)
 
-                        Label(DateFormatting.monthYear(review.attendedDate), systemImage: "calendar")
-                            .font(.caption.weight(.semibold))
+                        Text(DateFormatting.monthYear(review.attendedDate).uppercased())
+                            .font(WristlistTheme.kickerFont)
+                            .tracking(0.8)
                             .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
                             .lineLimit(1)
                     }
@@ -159,8 +158,8 @@ private struct FestivalReviewSummary: View {
             }
 
             Text(review.reviewText.isEmpty ? "Logged this festival without a written review." : review.reviewText)
-                .font(.subheadline)
-                .lineSpacing(2)
+                .font(.body)
+                .lineSpacing(3)
                 .foregroundStyle(WristlistTheme.primaryText(for: colorScheme))
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityLabel("Review: \(review.reviewText)")
@@ -172,13 +171,8 @@ private struct CategoryScoresGrid: View {
     let scores: [ReviewCategoryScore]
     let palette: FestivalPalette
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 8),
-        GridItem(.flexible(), spacing: 8)
-    ]
-
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 8) {
+        VStack(spacing: 12) {
             ForEach(scores) { score in
                 CategoryScoreView(score: score, palette: palette)
             }
@@ -215,13 +209,11 @@ private struct ReviewActionBar: View {
 
             ShareLink(item: "Check out \(review.userName)'s Wristlist review of \(festival.name): \(review.overallScore.formatted(.number.precision(.fractionLength(1))))/10") {
                 Label("Share", systemImage: "square.and.arrow.up")
-                    .font(.subheadline.weight(.bold))
+                    .font(.subheadline.weight(.black))
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
                     .foregroundStyle(WristlistTheme.secondaryText(for: colorScheme))
-                    .padding(.horizontal, 12)
                     .frame(height: 36)
-                    .background(WristlistTheme.tertiaryFill(for: colorScheme), in: Capsule())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Share review")
@@ -252,13 +244,11 @@ private struct ReviewActionButton: View {
     var body: some View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
-                .font(.subheadline.weight(.bold))
+                .font(.subheadline.weight(.black))
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
                 .foregroundStyle(isActive ? WristlistTheme.coral : WristlistTheme.secondaryText(for: colorScheme))
-                .padding(.horizontal, 12)
                 .frame(height: 36)
-                .background(WristlistTheme.tertiaryFill(for: colorScheme), in: Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
