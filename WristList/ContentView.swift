@@ -1,63 +1,68 @@
-//
-//  ContentView.swift
-//  WristList
-//
-//  Created by Scott Eisenberg on 9/7/26.
-//
-
 import SwiftData
 import SwiftUI
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @AppStorage("appearancePreference") private var appearancePreferenceRaw = AppearancePreference.system.rawValue
+    @State private var selectedTab = JournalTab.discover
+    @State private var showingAdd = false
     @State private var seedError: String?
 
-    private var appearancePreference: AppearancePreference {
-        AppearancePreference(rawValue: appearancePreferenceRaw) ?? .system
-    }
-
     var body: some View {
-        TabView {
-            FeedView()
-                .tabItem {
-                    Label("Feed", systemImage: "sparkles.rectangle.stack")
+        JournalHome(tab: selectedTab)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                HStack(spacing: 0) {
+                    ForEach(JournalTab.allCases) { tab in
+                        Button {
+                            if tab == .add { showingAdd = true } else { selectedTab = tab }
+                        } label: {
+                            VStack(spacing: 4) {
+                                Image(systemName: tab.icon)
+                                    .font(.system(size: tab == .add ? 22 : 20, weight: .medium))
+                                    .frame(width: 48, height: 32)
+                                    .background(tab == .add ? JournalStyle.coral : .clear, in: Capsule())
+                                Text(tab.rawValue).font(.caption2.weight(selectedTab == tab ? .bold : .regular))
+                            }
+                            .foregroundStyle(tab == .add ? JournalStyle.ink : selectedTab == tab ? JournalStyle.violet : JournalStyle.muted)
+                            .frame(maxWidth: .infinity, minHeight: 56)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
+                    }
                 }
-
-            DiscoverView()
-                .tabItem {
-                    Label("Discover", systemImage: "magnifyingglass")
-                }
-
-            MyListView()
-                .tabItem {
-                    Label("My List", systemImage: "list.bullet.clipboard")
-                }
-
-            ProfileView()
-                .tabItem {
-                    Label("Profile", systemImage: "person.crop.circle")
-                }
-        }
-        .tint(WristlistTheme.coral)
-        .preferredColorScheme(appearancePreference.colorScheme)
-        .task {
-            do {
-                try WristlistDataController.seedIfNeeded(in: modelContext)
-            } catch {
-                seedError = error.localizedDescription
+                .padding(.horizontal, 8).padding(.top, 8)
+                .background(JournalStyle.paper)
+                .overlay(alignment: .top) { Divider() }
             }
-        }
-        .alert("Could not prepare local data", isPresented: Binding(get: { seedError != nil }, set: { if !$0 { seedError = nil } })) {
-            Button("OK", role: .cancel) { seedError = nil }
-        } message: {
-            Text(seedError ?? "Try again.")
+            .sheet(isPresented: $showingAdd) { JournalAddView() }
+            .tint(JournalStyle.violet)
+            .preferredColorScheme(.light)
+            .task {
+                do {
+                    try WristlistDataController.seedIfNeeded(in: modelContext)
+                    try JournalSampleData.install(in: modelContext)
+                } catch { seedError = error.localizedDescription }
+            }
+            .alert("Couldn’t load your journal", isPresented: Binding(get: { seedError != nil }, set: { if !$0 { seedError = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: { Text(seedError ?? "") }
+    }
+}
+
+enum JournalTab: String, CaseIterable, Identifiable {
+    case discover = "Discover", rankings = "Rankings", add = "Add", friends = "Friends", profile = "Profile"
+    var id: String { rawValue }
+    var icon: String {
+        switch self {
+        case .discover: "sparkle.magnifyingglass"
+        case .rankings: "list.number"
+        case .add: "plus"
+        case .friends: "person.2"
+        case .profile: "person.crop.circle"
         }
     }
 }
 
-#Preview("App Shell") {
-    ContentView()
-        .modelContainer(PreviewContainerFactory.makeContainer())
-        .preferredColorScheme(.dark)
+#Preview("Festival journal") {
+    ContentView().modelContainer(PreviewContainerFactory.makeContainer())
 }
